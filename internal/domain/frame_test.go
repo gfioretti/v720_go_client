@@ -2,6 +2,7 @@ package domain
 
 import (
 	"bytes"
+	"encoding/binary"
 	"errors"
 	"testing"
 )
@@ -148,7 +149,70 @@ func TestFrame_EncodeDecodeRoundTrip(t *testing.T) {
 	}
 }
 
+// Type tags in §12.4 are all ≤ 115, so their high byte is always zero and a
+// byte-swapped/big-endian bug at offset 4–5 would go unnoticed. A synthetic
+// two-byte tag locks the field's little-endian order independently of the real
+// (single-byte) tag values.
+func TestFrame_TypeTagByteOrder(t *testing.T) {
+	f := Frame{Type: 0x0102}
+	got := f.Encode()
+	if got[4] != 0x02 || got[5] != 0x01 {
+		t.Fatalf("type tag bytes = %#x %#x, want 0x02 0x01 (little-endian)", got[4], got[5])
+	}
+
+	decoded, err := Decode(got)
+	if err != nil {
+		t.Fatalf("Decode() error: %v", err)
+	}
+	if decoded.Type != 0x0102 {
+		t.Fatalf("Type = %#x, want 0x0102", decoded.Type)
+	}
+}
+
+// Decode must copy the payload, not alias the caller's buffer: a transport
+// adapter is free to reuse its read buffer for the next frame, and a future
+// "optimization" to slice into the source would pass every value-equality test
+// while introducing a use-after-reuse bug. Mutating the source after decoding
+// must not disturb the returned payload.
+func TestFrame_DecodeDoesNotAliasSource(t *testing.T) {
+	raw := []byte{
+		0x04, 0x00, 0x00, 0x00,
+		0x01, 0x00,
+		0x00, 0x00,
+		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+		0x00, 0x00, 0x00, 0x00,
+		0xde, 0xad, 0xbe, 0xef,
+	}
+
+	got, err := Decode(raw)
+	if err != nil {
+		t.Fatalf("Decode() error: %v", err)
+	}
+
+	// Scribble over the source payload region; the decoded frame must be immune.
+	for i := HeaderSize; i < len(raw); i++ {
+		raw[i] = 0x00
+	}
+	if want := []byte{0xde, 0xad, 0xbe, 0xef}; !bytes.Equal(got.Payload, want) {
+		t.Fatalf("payload aliased source: got %x, want %x", got.Payload, want)
+	}
+}
+
+func TestFrame_DecodeMaxLengthBoundary(t *testing.T) {
+	// Exactly MaxFrameLength bytes must decode cleanly (the size check is an
+	// upper bound, not exclusive of the maximum itself).
+	atMax := make([]byte, MaxFrameLength)
+	binary.LittleEndian.PutUint32(atMax[0:4], uint32(MaxFrameLength-HeaderSize))
+	if _, err := Decode(atMax); err != nil {
+		t.Fatalf("Decode() of exactly MaxFrameLength bytes errored: %v", err)
+	}
+}
+
 func TestFrame_DecodeErrors(t *testing.T) {
+	// One byte past MaxFrameLength; a valid length field isolates the size check.
+	tooLarge := make([]byte, MaxFrameLength+1)
+	binary.LittleEndian.PutUint32(tooLarge[0:4], uint32(MaxFrameLength+1-HeaderSize))
+
 	tests := []struct {
 		name string
 		raw  []byte
@@ -158,6 +222,11 @@ func TestFrame_DecodeErrors(t *testing.T) {
 			name: "shorter than header",
 			raw:  make([]byte, 19),
 			want: ErrShortFrame,
+		},
+		{
+			name: "exceeds maximum frame length",
+			raw:  tooLarge,
+			want: ErrFrameTooLarge,
 		},
 		{
 			name: "length field exceeds available bytes",
