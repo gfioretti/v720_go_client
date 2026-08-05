@@ -52,9 +52,11 @@ const usage = `v720ctl — independent client for the V720 / A9 Mini WiFi camera
 
 Usage:
   v720ctl ap connect --addr <host:port> --dev <devId> [--password <pwd>] [--timeout <dur>]
+  v720ctl ap live    --addr <host:port> --dev <devId> [--password <pwd>] [--out <dir>] [--duration <dur>]
 
 Commands:
   ap connect   Connect over the camera's AP-mode Wi-Fi hotspot and run the handshake.
+  ap live      Connect, then stream live view; write MJPEG frames to --out (or just count them).
 `
 
 // Run dispatches args (excluding the program name) and returns a process exit
@@ -77,11 +79,35 @@ func (a *App) Run(ctx context.Context, args []string) int {
 }
 
 func (a *App) runAP(ctx context.Context, args []string) int {
-	if len(args) == 0 || args[0] != "connect" {
-		a.errf("v720ctl ap: expected \"connect\"\n\n%s", usage)
+	if len(args) == 0 {
+		a.errf("v720ctl ap: expected \"connect\" or \"live\"\n\n%s", usage)
 		return 2
 	}
-	return a.runAPConnect(ctx, args[1:])
+	switch args[0] {
+	case "connect":
+		return a.runAPConnect(ctx, args[1:])
+	case "live":
+		return a.runAPLive(ctx, args[1:])
+	default:
+		a.errf("v720ctl ap: unknown subcommand %q\n\n%s", args[0], usage)
+		return 2
+	}
+}
+
+// dialAndConnect dials the transport and runs the AP-mode handshake, returning
+// the connected session and its transport (which the caller must Close). ctx
+// should carry the connect deadline. On failure the transport is closed here.
+func (a *App) dialAndConnect(ctx context.Context, addr, dev, password string) (*application.APSession, application.Transport, error) {
+	transport, err := a.Dial(ctx, addr)
+	if err != nil {
+		return nil, nil, fmt.Errorf("connect: %w", err)
+	}
+	session := application.NewAPSession(transport, dev, password)
+	if err := session.Connect(ctx); err != nil {
+		_ = transport.Close()
+		return nil, nil, fmt.Errorf("handshake failed: %w", err)
+	}
+	return session, transport, nil
 }
 
 func (a *App) runAPConnect(ctx context.Context, args []string) int {
@@ -109,18 +135,12 @@ func (a *App) runAPConnect(ctx context.Context, args []string) int {
 	ctx, cancel := context.WithTimeout(ctx, *timeout)
 	defer cancel()
 
-	transport, err := a.Dial(ctx, *addr)
+	_, transport, err := a.dialAndConnect(ctx, *addr, *dev, *password)
 	if err != nil {
-		a.errf("v720ctl: connect: %v\n", err)
+		a.errf("v720ctl: %v\n", err)
 		return 1
 	}
 	defer func() { _ = transport.Close() }()
-
-	session := application.NewAPSession(transport, *dev, *password)
-	if err := session.Connect(ctx); err != nil {
-		a.errf("v720ctl: handshake failed: %v\n", err)
-		return 1
-	}
 
 	a.outf("connected to %s at %s\n", *dev, *addr)
 	return 0
