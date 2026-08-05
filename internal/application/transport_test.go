@@ -120,7 +120,7 @@ func TestFakeTransport_ConcurrentSendReceive(t *testing.T) {
 	const n = 100
 	done := make(chan struct{})
 	go func() {
-		for i := 0; i < n; i++ {
+		for i := range n {
 			got, err := ft.Receive(ctx)
 			if err != nil {
 				t.Errorf("Receive() error: %v", err)
@@ -133,7 +133,7 @@ func TestFakeTransport_ConcurrentSendReceive(t *testing.T) {
 		close(done)
 	}()
 
-	for i := 0; i < n; i++ {
+	for i := range n {
 		if err := ft.Send(ctx, domain.Frame{Sequence: uint32(i)}); err != nil {
 			t.Fatalf("Send() error: %v", err)
 		}

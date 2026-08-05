@@ -26,7 +26,7 @@ func dialTestChannel(t *testing.T) (*Channel, net.Conn) {
 	if err != nil {
 		t.Fatalf("listen: %v", err)
 	}
-	defer ln.Close()
+	defer func() { _ = ln.Close() }()
 
 	type accepted struct {
 		conn net.Conn
