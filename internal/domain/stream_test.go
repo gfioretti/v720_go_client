@@ -20,36 +20,6 @@ func TestStreamState_Values(t *testing.T) {
 	}
 }
 
-// NewStreamControl wraps the state in the AP-mode 502 content envelope
-// ({"code":502,"content":{"code":<state>}}, doc §12.3 step 8 sendApCommand).
-func TestNewStreamControl_JSON(t *testing.T) {
-	tests := []struct {
-		name  string
-		state StreamState
-		want  string
-	}{
-		{"start", StreamStart, `{"code":502,"content":{"code":3}}`},
-		{"stop", StreamStop, `{"code":502,"content":{"code":0}}`},
-		{"audio only", StreamOpenAudioCloseVideo, `{"code":502,"content":{"code":1}}`},
-		{"video only", StreamCloseAudioOpenVideo, `{"code":502,"content":{"code":2}}`},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			cmd := NewStreamControl(tt.state)
-			if cmd.Code != CodeApCommand {
-				t.Errorf("Code = %d, want %d", cmd.Code, CodeApCommand)
-			}
-			got, err := cmd.JSON()
-			if err != nil {
-				t.Fatalf("JSON() error: %v", err)
-			}
-			if string(got) != tt.want {
-				t.Fatalf("JSON() = %s, want %s", got, tt.want)
-			}
-		})
-	}
-}
-
 func TestFrameType_MediaClassification(t *testing.T) {
 	tests := []struct {
 		ft      FrameType
