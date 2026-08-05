@@ -137,11 +137,74 @@ func TestRun_ConnectHandshakeRejectedExits1(t *testing.T) {
 
 // --- mock camera + stream frame codec (test-only) ---
 
-// startMockCamera listens on loopback and plays the device side of the AP-mode
-// handshake (doc §12.3) for one connection, returning the listen address. It
-// replies to the 501 registration with registerStatus; a non-200 value drives
-// the rejection path (the client aborts before authorization).
+// mockHandshake plays the device side of the AP-mode handshake (doc §12.3) on
+// conn, replying to the 501 registration with registerStatus. It reports whether
+// the handshake completed successfully (registerStatus 200 and no I/O error).
+func mockHandshake(conn net.Conn, devID string, registerStatus int) bool {
+	// step 3: echo the type-115 trigger.
+	if _, err := readStreamFrame(conn); err != nil {
+		return false
+	}
+	if err := writeStreamFrame(conn, domain.Frame{Type: domain.FrameTypeHandshakeTrigger}); err != nil {
+		return false
+	}
+	// step 5: respond to the 501 registration.
+	if _, err := readStreamFrame(conn); err != nil {
+		return false
+	}
+	_ = writeStreamFrame(conn, jsonControl(map[string]any{"code": 501, "status": registerStatus, "target": devID}))
+	if registerStatus != 200 {
+		return false // client aborts; nothing more to exchange.
+	}
+	// step 6: consume the time-sync (code 4), no reply.
+	if _, err := readStreamFrame(conn); err != nil {
+		return false
+	}
+	// step 7: confirm the 500 authorization.
+	if _, err := readStreamFrame(conn); err != nil {
+		return false
+	}
+	_ = writeStreamFrame(conn, jsonControl(map[string]any{"code": 500, "status": 200}))
+	return true
+}
+
+// startMockCamera listens on loopback and plays the device side of the handshake
+// for one connection, returning the listen address.
 func startMockCamera(t *testing.T, devID string, registerStatus int) string {
+	t.Helper()
+	return serveMockCamera(t, func(conn net.Conn) {
+		if !mockHandshake(conn, devID, registerStatus) {
+			return
+		}
+		// Keep the conn open until the client hangs up so late reads aren't cut off.
+		_, _ = io.Copy(io.Discard, conn)
+	})
+}
+
+// startMockCameraStreaming does the handshake, then after the client's live-view
+// start command sends the given media frames, then drains until the client hangs
+// up (consuming its stop command).
+func startMockCameraStreaming(t *testing.T, devID string, media []domain.Frame) string {
+	t.Helper()
+	return serveMockCamera(t, func(conn net.Conn) {
+		if !mockHandshake(conn, devID, 200) {
+			return
+		}
+		if _, err := readStreamFrame(conn); err != nil { // the 502 stream-start
+			return
+		}
+		for _, f := range media {
+			if err := writeStreamFrame(conn, f); err != nil {
+				return
+			}
+		}
+		_, _ = io.Copy(io.Discard, conn)
+	})
+}
+
+// serveMockCamera starts a one-shot loopback listener and runs handle on the
+// accepted connection, returning the listen address.
+func serveMockCamera(t *testing.T, handle func(net.Conn)) string {
 	t.Helper()
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -155,34 +218,7 @@ func startMockCamera(t *testing.T, devID string, registerStatus int) string {
 			return
 		}
 		defer func() { _ = conn.Close() }()
-
-		// step 3: echo the type-115 trigger.
-		if _, err := readStreamFrame(conn); err != nil {
-			return
-		}
-		if err := writeStreamFrame(conn, domain.Frame{Type: domain.FrameTypeHandshakeTrigger}); err != nil {
-			return
-		}
-		// step 5: respond to the 501 registration.
-		if _, err := readStreamFrame(conn); err != nil {
-			return
-		}
-		_ = writeStreamFrame(conn, jsonControl(map[string]any{"code": 501, "status": registerStatus, "target": devID}))
-		if registerStatus != 200 {
-			return // client aborts; nothing more to exchange.
-		}
-		// step 6: consume the time-sync (code 4), no reply.
-		if _, err := readStreamFrame(conn); err != nil {
-			return
-		}
-		// step 7: confirm the 500 authorization.
-		if _, err := readStreamFrame(conn); err != nil {
-			return
-		}
-		_ = writeStreamFrame(conn, jsonControl(map[string]any{"code": 500, "status": 200}))
-
-		// Keep the conn open until the client hangs up so late reads aren't cut off.
-		_, _ = io.Copy(io.Discard, conn)
+		handle(conn)
 	}()
 
 	return ln.Addr().String()
