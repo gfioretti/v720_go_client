@@ -1,6 +1,9 @@
 package domain
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"maps"
+)
 
 // Code is the JSON "code" field carried inside a FrameTypeJSON (tag 0) payload.
 // It is the application-level message type within a JSON control frame and is a
@@ -74,9 +77,7 @@ type Command struct {
 // alphabetical sort and is irrelevant to the device.
 func (c Command) JSON() ([]byte, error) {
 	m := make(map[string]any, len(c.Params)+1)
-	for k, v := range c.Params {
-		m[k] = v
-	}
+	maps.Copy(m, c.Params)
 	m["code"] = uint16(c.Code)
 	return json.Marshal(m)
 }
