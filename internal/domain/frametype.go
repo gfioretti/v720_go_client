@@ -32,6 +32,19 @@ const (
 	FrameTypeHandshakeTrigger FrameType = 115
 )
 
+// IsVideo reports whether the tag carries a video frame. Only MJPEG (tag 1) is
+// confirmed in practice; a distinct H.264 tag may exist but has not been
+// observed (doc §12.4 note).
+func (ft FrameType) IsVideo() bool {
+	return ft == FrameTypeMJPEG
+}
+
+// IsAudio reports whether the tag carries an audio frame: G.711 A-law (tag 4) or
+// PCM (tag 6), per doc §12.4.
+func (ft FrameType) IsAudio() bool {
+	return ft == FrameTypeAudioG711 || ft == FrameTypeAudioPCM
+}
+
 // String renders the tag by name for logging, falling back to a numeric form
 // for any value not in the §12.4 table.
 func (ft FrameType) String() string {
