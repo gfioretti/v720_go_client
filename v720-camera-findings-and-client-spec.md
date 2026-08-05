@@ -283,7 +283,15 @@ Video codec: packet tag `1` maps specifically to **MJPEG**, not H.264 — despit
 
 ### 12.5 JSON `"code"` field — outbound commands (app → device)
 
-All sent as `{"code": N, ...params}` wrapped in a type-`0` packet, via `sendForwardCommand` (P2P/relay) or the `OooO.OooO00o(map, channel)` helper (AP-mode) — same codes/params on both paths.
+**AP-mode send format — corrected 2026-08-05 by reading `OooOOO0`/`NaxclowApChannel` directly.** In AP-mode every device-control command is built as a flat map `{"devTarget": "<devId>", "code": N, "<param>": <value>}` and passed to `OooO.OooO00o(map, channel)`, which calls `NaxclowApChannel.sendApCommand(...)` — and `sendApCommand` **wraps** its argument as `{"code":502, "content": {...}}`. So the actual AP-mode wire form of each command below is:
+
+```
+{"code":502, "content":{"code":N, "devTarget":"<devId>", ...params}}
+```
+
+i.e. every AP device command is `502`-wrapped and carries a `devTarget` field — **neither of which the original table below reflected**. (P2P/relay uses `sendForwardCommand` → the `301` wrapper instead; that path is unverified here.) The `param` column below lists the inner content params; `devTarget`=devId is implicitly present on all of them in AP-mode.
+
+Newly confirmed while reading the source: code **`207`** and code **`299`** are real paramless commands (also `227` and `229` seen as paramless, exact purpose unclear); there is a **`mirrorFlip` (int)** param on a jadx-obscured code (`Sdk.SDKError.Reason.AD_RESPONSE_INVALID_TEMPLATE_TYPE_VALUE`) not previously listed; `instLed`'s obscured code resolves to `Sdk.SDKError.Reason.AD_NOT_LOADED_VALUE` (Vungle enum — real integer still needs an IDE lookup).
 
 | Code | Parameters | Purpose |
 |---|---|---|
@@ -304,6 +312,7 @@ All sent as `{"code": N, ...params}` wrapped in a type-`0` packet, via `sendForw
 | 299 | none | Unclear — likely disconnect/unregister signal |
 | *(obscured)* | `instLed` (int) | Instant/flash LED — real code number needs Android Studio lookup (section 7.1) |
 | *(obscured)* | `motorState` (int) | PTZ motor state — real code number needs lookup |
+| *(obscured)* | `mirrorFlip` (int) | Image mirror/flip — jadx shows `Sdk.SDKError.Reason.AD_RESPONSE_INVALID_TEMPLATE_TYPE_VALUE`; real int needs lookup |
 | *(obscured)* | `setRf433Dev` (int) | RF433 remote pairing/control — real code number needs lookup |
 | *(obscured)* | `sfq` (int) | Adaptive frame-quality feedback (section 12.2 step 6) — real code number needs lookup |
 | *(obscured, two variants)* | none | Two more toggle-style commands with no params — real code numbers need lookup |
