@@ -32,9 +32,12 @@ type Transport interface {
 	Send(ctx context.Context, f domain.Frame) error
 
 	// Receive blocks until the next inbound frame is available, then returns it.
-	// It honours ctx for cancellation/deadlines (returning ctx.Err()) and returns
-	// ErrTransportClosed once the transport is closed and no more frames will
-	// arrive.
+	// It honours ctx for cancellation/deadlines (returning ctx.Err()) when no
+	// frame is ready. Implementations may, however, return an already-buffered
+	// frame in preference to reporting cancellation, so a caller looping over a
+	// steady stream should also check ctx itself to observe cancellation
+	// promptly. It returns ErrTransportClosed once the transport is closed and no
+	// more frames will arrive.
 	Receive(ctx context.Context) (domain.Frame, error)
 
 	// Close shuts the transport down. It is safe to call more than once; the
