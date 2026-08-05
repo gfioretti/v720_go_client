@@ -53,10 +53,12 @@ const usage = `v720ctl — independent client for the V720 / A9 Mini WiFi camera
 Usage:
   v720ctl ap connect --addr <host:port> --dev <devId> [--password <pwd>] [--timeout <dur>]
   v720ctl ap live    --addr <host:port> --dev <devId> [--password <pwd>] [--out <dir>] [--duration <dur>]
+  v720ctl ap set --addr <host:port> --dev <devId> [--password <pwd>] <setting> <value>
 
 Commands:
   ap connect   Connect over the camera's AP-mode Wi-Fi hotspot and run the handshake.
   ap live      Connect, then stream live view; write MJPEG frames to --out (or just count them).
+  ap set       Connect, then send one device-control command (settings: camera, ir, motion-alert, move-grade, quality, white-led).
 `
 
 // Run dispatches args (excluding the program name) and returns a process exit
@@ -80,7 +82,7 @@ func (a *App) Run(ctx context.Context, args []string) int {
 
 func (a *App) runAP(ctx context.Context, args []string) int {
 	if len(args) == 0 {
-		a.errf("v720ctl ap: expected \"connect\" or \"live\"\n\n%s", usage)
+		a.errf("v720ctl ap: expected a subcommand (connect, live, set)\n\n%s", usage)
 		return 2
 	}
 	switch args[0] {
@@ -88,6 +90,8 @@ func (a *App) runAP(ctx context.Context, args []string) int {
 		return a.runAPConnect(ctx, args[1:])
 	case "live":
 		return a.runAPLive(ctx, args[1:])
+	case "set":
+		return a.runAPSet(ctx, args[1:])
 	default:
 		a.errf("v720ctl ap: unknown subcommand %q\n\n%s", args[0], usage)
 		return 2

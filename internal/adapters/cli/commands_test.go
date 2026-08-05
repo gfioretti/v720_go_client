@@ -50,12 +50,12 @@ func TestRun_Help(t *testing.T) {
 	}
 }
 
-func TestRun_ApWithoutConnect(t *testing.T) {
+func TestRun_ApWithoutSubcommand(t *testing.T) {
 	app, _, errb := newTestApp()
 	if code := app.Run(context.Background(), []string{"ap"}); code != 2 {
 		t.Fatalf("exit code = %d, want 2", code)
 	}
-	if !strings.Contains(errb.String(), `expected "connect"`) {
+	if !strings.Contains(errb.String(), "expected a subcommand") {
 		t.Fatalf("stderr = %q", errb.String())
 	}
 }
