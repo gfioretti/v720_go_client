@@ -108,26 +108,9 @@ func TestStartLiveView_DispatchesMediaUntilCancel(t *testing.T) {
 		t.Errorf("audio codecs = %v", sink.audios)
 	}
 
-	// The session sent exactly a start then a stop control command.
-	sent := ft.sentFrames()
-	if len(sent) != 2 {
-		t.Fatalf("sent %d frames, want 2 (start, stop): %+v", len(sent), sent)
-	}
-	assertPayload(t, sent[0], domain.NewStreamControl(domain.StreamStart))
-	assertPayload(t, sent[1], domain.NewStreamControl(domain.StreamStop))
-}
-
-func assertPayload(t *testing.T, f domain.Frame, cmd domain.Command) {
-	t.Helper()
-	if f.Type != domain.FrameTypeJSON {
-		t.Fatalf("frame type = %s, want JSON", f.Type)
-	}
-	want, err := cmd.JSON()
-	if err != nil {
-		t.Fatalf("encode expected: %v", err)
-	}
-	if !bytes.Equal(f.Payload, want) {
-		t.Fatalf("payload = %s, want %s", f.Payload, want)
+	// AP-mode live view is receive-only: the session emits no start/stop command.
+	if n := len(ft.sentFrames()); n != 0 {
+		t.Fatalf("sent %d frames, want 0 (AP live view sends nothing)", n)
 	}
 }
 
@@ -146,7 +129,7 @@ func TestStartLiveView_NilHandlersDropMedia(t *testing.T) {
 	}
 }
 
-func TestStartLiveView_StartCommandFailsIfTransportClosed(t *testing.T) {
+func TestStartLiveView_ClosedTransportReturnsError(t *testing.T) {
 	ft := newFakeTransport()
 	s := NewAPSession(ft, testDevID, testPassword)
 	_ = ft.Close()
@@ -154,11 +137,6 @@ func TestStartLiveView_StartCommandFailsIfTransportClosed(t *testing.T) {
 	err := s.StartLiveView(context.Background(), newRecordingSink(0), nil)
 	if !errors.Is(err, ErrTransportClosed) {
 		t.Fatalf("StartLiveView = %v, want ErrTransportClosed", err)
-	}
-	// A failed start must not emit a stray stop (the defer is registered only
-	// after the start succeeds).
-	if n := len(ft.sentFrames()); n != 0 {
-		t.Fatalf("sent %d frames after a failed start, want 0", n)
 	}
 }
 
@@ -207,11 +185,9 @@ func TestStartLiveView_AudioHandlerErrorStopsStream(t *testing.T) {
 	if !errors.Is(err, sinkErr) {
 		t.Fatalf("StartLiveView = %v, want it to wrap the audio-handler error", err)
 	}
-	sent := ft.sentFrames()
-	if len(sent) != 2 {
-		t.Fatalf("sent %d frames, want start+stop", len(sent))
+	if n := len(ft.sentFrames()); n != 0 {
+		t.Fatalf("sent %d frames, want 0", n)
 	}
-	assertPayload(t, sent[1], domain.NewStreamControl(domain.StreamStop))
 }
 
 func TestStartLiveView_SinkErrorStopsStream(t *testing.T) {
@@ -226,12 +202,9 @@ func TestStartLiveView_SinkErrorStopsStream(t *testing.T) {
 	if !errors.Is(err, sinkErr) {
 		t.Fatalf("StartLiveView = %v, want it to wrap the sink error", err)
 	}
-	// A stop command should still have gone out after the error.
-	sent := ft.sentFrames()
-	if len(sent) != 2 {
-		t.Fatalf("sent %d frames, want start+stop", len(sent))
+	if n := len(ft.sentFrames()); n != 0 {
+		t.Fatalf("sent %d frames, want 0", n)
 	}
-	assertPayload(t, sent[1], domain.NewStreamControl(domain.StreamStop))
 }
 
 func TestStartLiveView_TransportErrorPropagates(t *testing.T) {

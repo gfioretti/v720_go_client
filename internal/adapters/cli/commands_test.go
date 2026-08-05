@@ -181,18 +181,17 @@ func startMockCamera(t *testing.T, devID string, registerStatus int) string {
 	})
 }
 
-// startMockCameraStreaming does the handshake, then after the client's live-view
-// start command sends the given media frames, then drains until the client hangs
-// up (consuming its stop command).
+// startMockCameraStreaming does the handshake, then — since AP-mode live view
+// auto-starts and the client sends no start command — streams the given media
+// frames immediately, then drains until the client hangs up.
 func startMockCameraStreaming(t *testing.T, devID string, media []domain.Frame) string {
 	t.Helper()
 	return serveMockCamera(t, func(conn net.Conn) {
 		if !mockHandshake(conn, devID, 200) {
 			return
 		}
-		if _, err := readStreamFrame(conn); err != nil { // the 502 stream-start
-			return
-		}
+		// AP-mode live view auto-starts after the handshake — the client sends
+		// no start command — so stream the media frames straight away.
 		for _, f := range media {
 			if err := writeStreamFrame(conn, f); err != nil {
 				return
