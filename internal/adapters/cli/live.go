@@ -26,6 +26,7 @@ func (a *App) runAPLive(ctx context.Context, args []string) int {
 	connectTimeout := fs.Duration("connect-timeout", 10*time.Second, "handshake timeout")
 	duration := fs.Duration("duration", 0, "how long to stream (0 = until interrupted)")
 	outDir := fs.String("out", "", "directory to write MJPEG frames as .jpg (empty = don't)")
+	audioOut := fs.String("audio-out", "", "write decoded G.711 audio to this .wav file (8 kHz mono PCM16)")
 	mjpeg := fs.String("mjpeg", "", "write a raw MJPEG stream here for live viewing; '-' = stdout\n"+
 		"\t(watch live: v720ctl ap live ... --mjpeg - | ffplay -f mjpeg -i -)")
 	debug := fs.Bool("debug", false, "log every frame sent/received to stderr")
@@ -78,6 +79,21 @@ func (a *App) runAPLive(ctx context.Context, args []string) int {
 	}
 
 	writer := &frameWriter{dir: *outDir, mjpeg: mjpegW}
+	if *audioOut != "" {
+		// G.711 A-law is 8 kHz mono (doc §12.4); decoded to PCM16 for the WAV.
+		wav, err := newWAVWriter(*audioOut, 8000, 1)
+		if err != nil {
+			a.errf("v720ctl: create audio file: %v\n", err)
+			return 1
+		}
+		writer.wav = wav
+		defer func() {
+			if err := wav.Close(); err != nil {
+				a.errf("v720ctl: finalize audio file: %v\n", err)
+			}
+		}()
+	}
+
 	status("streaming from %s (%s)...\n", *dev, streamDescription(*duration))
 	if err := session.StartLiveView(streamCtx, writer, writer); err != nil {
 		a.errf("v720ctl: live view: %v\n", err)
@@ -124,6 +140,7 @@ func streamDescription(d time.Duration) string {
 type frameWriter struct {
 	dir    string
 	mjpeg  io.Writer
+	wav    *wavWriter // nil unless --audio-out is set
 	videoN int
 	audioN int
 }
@@ -146,14 +163,27 @@ func (w *frameWriter) OnVideoFrame(data []byte) error {
 	return nil
 }
 
-func (w *frameWriter) OnAudioFrame(_ domain.FrameType, _ []byte) error {
+func (w *frameWriter) OnAudioFrame(codec domain.FrameType, data []byte) error {
 	w.audioN++
+	// Only G.711 A-law is decoded to the WAV. PCM frames (tag 6) have an
+	// unconfirmed on-wire format (doc §12.8) and are counted but not written.
+	if w.wav != nil && codec == domain.FrameTypeAudioG711 {
+		if err := w.wav.WriteSamples(domain.DecodeALaw(data)); err != nil {
+			return fmt.Errorf("write audio: %w", err)
+		}
+	}
 	return nil
 }
 
 func (w *frameWriter) destinationNote() string {
-	if w.dir != "" {
+	switch {
+	case w.dir != "" && w.wav != nil:
+		return " (frames -> " + w.dir + ", audio -> the .wav file)"
+	case w.dir != "":
 		return " written to " + w.dir
+	case w.wav != nil:
+		return " (audio written to the .wav file)"
+	default:
+		return ""
 	}
-	return ""
 }

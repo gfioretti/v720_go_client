@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"context"
+	"encoding/binary"
 	"os"
 	"path/filepath"
 	"strings"
@@ -197,5 +198,49 @@ func TestRun_LiveWritesFramesToDir(t *testing.T) {
 	}
 	if !strings.Contains(out.String(), "written to "+dir) {
 		t.Fatalf("stdout = %q", out.String())
+	}
+}
+
+// End-to-end: G.711 audio frames are decoded and written to --audio-out as a
+// valid PCM16 WAV file.
+func TestRun_LiveWritesAudioWAV(t *testing.T) {
+	const devID = "dev123"
+	// Two A-law bytes -> two PCM16 samples (4 data bytes).
+	media := []domain.Frame{
+		{Type: domain.FrameTypeAudioG711, Payload: []byte{0xD5, 0x55}},
+	}
+	addr := startMockCameraStreaming(t, devID, media)
+
+	path := filepath.Join(t.TempDir(), "audio.wav")
+	app, out, errb := newTestApp()
+	code := app.Run(context.Background(), []string{
+		"ap", "live", "--addr", addr, "--dev", devID,
+		"--connect-timeout", "2s", "--duration", "250ms", "--audio-out", path,
+	})
+	if code != 0 {
+		t.Fatalf("exit code = %d, want 0 (stderr: %q)", code, errb.String())
+	}
+
+	b, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read wav: %v", err)
+	}
+	if string(b[0:4]) != "RIFF" || string(b[8:12]) != "WAVE" {
+		t.Fatalf("not a WAV file: %q", b[:12])
+	}
+	if got := binary.LittleEndian.Uint32(b[24:28]); got != 8000 {
+		t.Errorf("sample rate = %d, want 8000", got)
+	}
+	if got := binary.LittleEndian.Uint32(b[40:44]); got != 4 {
+		t.Errorf("data size = %d, want 4 (2 samples x 2 bytes)", got)
+	}
+	// The decoded samples must be the A-law expansions of 0xD5 / 0x55 (±8).
+	s0 := int16(binary.LittleEndian.Uint16(b[wavHeaderSize : wavHeaderSize+2]))
+	s1 := int16(binary.LittleEndian.Uint16(b[wavHeaderSize+2 : wavHeaderSize+4]))
+	if s0 != 8 || s1 != -8 {
+		t.Errorf("samples = %d,%d, want 8,-8", s0, s1)
+	}
+	if !strings.Contains(out.String(), "audio") {
+		t.Errorf("stdout = %q, want it to mention audio", out.String())
 	}
 }

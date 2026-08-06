@@ -188,8 +188,9 @@ func startMockCameraStreaming(t *testing.T, devID string, media []domain.Frame) 
 		if !mockHandshake(conn, devID, 200) {
 			return
 		}
-		// AP-mode live view auto-starts after the handshake — the client sends
-		// no start command — so stream the media frames straight away.
+		// The client sends a stream-start command after the handshake; this mock
+		// doesn't wait for it and just streams the media frames straight away
+		// (any client input, including that command, is drained below).
 		for _, f := range media {
 			if err := writeStreamFrame(conn, f); err != nil {
 				return
