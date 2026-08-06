@@ -41,12 +41,13 @@ func decodeControl(t *testing.T, f domain.Frame) map[string]any {
 }
 
 // happyPathResponses pre-loads the device's successful handshake replies, in the
-// order the client expects to receive them (doc §12.3): the type-115 echo, the
-// 501 registration confirmation, then the 500 authorization confirmation.
+// order the client expects to receive them (doc §12.3): the type-115 echo, then
+// the 501 registration confirmation. The 500 authorize is fire-and-forget — the
+// device is not expected to (and a real one does not) reply to it — so there is
+// no auth response to pre-load.
 func happyPathResponses(t *testing.T, ft *fakeTransport) {
 	ft.push(domain.Frame{Type: domain.FrameTypeHandshakeTrigger})
 	ft.push(jsonControlFrame(t, map[string]any{"code": 501, "status": 200, "target": testDevID}))
-	ft.push(jsonControlFrame(t, map[string]any{"code": 500, "status": 200}))
 }
 
 func TestAPSession_Connect_HappyPath(t *testing.T) {
@@ -89,10 +90,40 @@ func TestAPSession_Connect_HappyPath(t *testing.T) {
 		t.Errorf("time-sync frame = %v", sync)
 	}
 
-	// Frame 3 — 500 authorize with the password in the "sk" field (doc §12.3 step 7).
+	// Frame 3 — 500 authorize with the password in the "sk" field, sent
+	// best-effort because a password is configured (doc §12.3 step 7).
 	auth := decodeControl(t, sent[3])
 	if auth["code"] != float64(500) || auth["sk"] != testPassword {
 		t.Errorf("authorize frame = %v", auth)
+	}
+}
+
+// A camera with no password (e.g. freshly reset): Connect must NOT send the 500
+// authorize (a real no-password camera never answers it) and must succeed on the
+// 115→501→time-sync handshake alone.
+func TestAPSession_Connect_NoPasswordSkipsAuthorize(t *testing.T) {
+	ft := newFakeTransport()
+	s := NewAPSession(ft, testDevID, "") // no password
+	s.now = func() time.Time { return time.Unix(0, 0).UTC() }
+	ft.push(domain.Frame{Type: domain.FrameTypeHandshakeTrigger})
+	ft.push(jsonControlFrame(t, map[string]any{"code": 501, "status": 200, "target": testDevID}))
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	if err := s.Connect(ctx); err != nil {
+		t.Fatalf("Connect() error: %v", err)
+	}
+
+	sent := ft.sentFrames()
+	if len(sent) != 3 {
+		t.Fatalf("sent %d frames, want 3 (trigger, register, time-sync — no authorize): %+v", len(sent), sent)
+	}
+	for _, f := range sent {
+		if f.Type == domain.FrameTypeJSON {
+			if m := decodeControl(t, f); m["code"] == float64(500) {
+				t.Fatalf("sent a 500 authorize despite no password: %v", m)
+			}
+		}
 	}
 }
 
@@ -124,21 +155,6 @@ func TestAPSession_Connect_RegistrationRejected(t *testing.T) {
 	}
 }
 
-func TestAPSession_Connect_AuthorizationRejected(t *testing.T) {
-	ft := newFakeTransport()
-	s := NewAPSession(ft, testDevID, testPassword)
-	ft.push(domain.Frame{Type: domain.FrameTypeHandshakeTrigger})
-	ft.push(jsonControlFrame(t, map[string]any{"code": 501, "status": 200, "target": testDevID}))
-	ft.push(jsonControlFrame(t, map[string]any{"code": 500, "status": 403}))
-
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	defer cancel()
-	err := s.Connect(ctx)
-	if !errors.Is(err, ErrHandshakeAuth) {
-		t.Fatalf("Connect() error = %v, want ErrHandshakeAuth", err)
-	}
-}
-
 func TestAPSession_Connect_TimesOutWaitingForEcho(t *testing.T) {
 	ft := newFakeTransport()
 	s := NewAPSession(ft, testDevID, testPassword)
@@ -164,7 +180,6 @@ func TestAPSession_Connect_SkipsUnrelatedInboundFrames(t *testing.T) {
 	ft.push(domain.Frame{Type: domain.FrameTypeHandshakeTrigger})
 	ft.push(jsonControlFrame(t, map[string]any{"code": 53, "status": 1}))
 	ft.push(jsonControlFrame(t, map[string]any{"code": 501, "status": 200, "target": testDevID}))
-	ft.push(jsonControlFrame(t, map[string]any{"code": 500, "status": 200}))
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
@@ -182,7 +197,6 @@ func TestAPSession_Connect_SkipsMalformedJSONFrame(t *testing.T) {
 	// A JSON-tagged frame whose body is not valid JSON must be skipped, not fatal.
 	ft.push(domain.Frame{Type: domain.FrameTypeJSON, Payload: []byte("{not json")})
 	ft.push(jsonControlFrame(t, map[string]any{"code": 501, "status": 200, "target": testDevID}))
-	ft.push(jsonControlFrame(t, map[string]any{"code": 500, "status": 200}))
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
