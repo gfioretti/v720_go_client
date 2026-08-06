@@ -43,9 +43,12 @@ PWARG=""
 	fi
 
 	echo
-	echo "--- [3] rebuild client if missing ---"
-	[ -x ./v720ctl ] || go build -o v720ctl ./cmd/v720ctl
-	echo "binary: $([ -x ./v720ctl ] && echo present || echo MISSING)"
+	echo "--- [3] rebuild client (always, so code changes take effect) ---"
+	if go build -o v720ctl ./cmd/v720ctl; then
+		echo "binary: rebuilt ($(date -r ./v720ctl '+%H:%M:%S'))"
+	else
+		echo "binary: BUILD FAILED — using existing $([ -x ./v720ctl ] && echo binary || echo '(none)')"
+	fi
 
 	echo
 	echo "--- [4] connect / handshake (smallest test) ---"
