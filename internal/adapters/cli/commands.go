@@ -21,17 +21,27 @@ import (
 // without a socket.
 type Dialer func(ctx context.Context, addr string) (application.Transport, error)
 
-// App holds the CLI's I/O sinks and its transport dialer. Construct it with
-// NewApp for the real wiring.
+// PlayerLauncher starts a media-player subprocess (e.g. ffplay) and returns a
+// writer for its stdin, into which the caller streams MJPEG, plus a wait function
+// to call once stdin is closed. It is a seam: the real App spawns a process,
+// while tests inject a fake that captures the streamed bytes.
+type PlayerLauncher func(ctx context.Context, command []string) (stdin io.WriteCloser, wait func() error, err error)
+
+// App holds the CLI's I/O sinks, its transport dialer, and its media-player
+// launcher. Construct it with NewApp for the real wiring.
 type App struct {
 	Stdout io.Writer
 	Stderr io.Writer
 	Dial   Dialer
+	Player PlayerLauncher
 }
 
-// NewApp returns an App wired to the real AP-mode TCP transport.
+// NewApp returns an App wired to the real AP-mode TCP transport and a real
+// process-spawning media-player launcher.
 func NewApp(stdout, stderr io.Writer) *App {
-	return &App{Stdout: stdout, Stderr: stderr, Dial: dialAPTCP}
+	a := &App{Stdout: stdout, Stderr: stderr, Dial: dialAPTCP}
+	a.Player = a.launchPlayer
+	return a
 }
 
 func dialAPTCP(ctx context.Context, addr string) (application.Transport, error) {
@@ -53,6 +63,7 @@ const usage = `v720ctl — independent client for the V720 / A9 Mini WiFi camera
 Usage:
   v720ctl ap connect --addr <host:port> --dev <devId> [--password <pwd>] [--timeout <dur>]
   v720ctl ap live    --addr <host:port> --dev <devId> [--password <pwd>] [--mjpeg -|<file>] [--out <dir>] [--audio-out <file.wav>] [--duration <dur>]
+  v720ctl ap preview --addr <host:port> --dev <devId> [--password <pwd>] [--player <cmd>] [--duration <dur>]
   v720ctl ap set --addr <host:port> --dev <devId> [--password <pwd>] <setting> <value>
   v720ctl ap sd-list --addr <host:port> --dev <devId> [--password <pwd>]
 
@@ -61,6 +72,8 @@ Commands:
   ap live      Connect, then stream live view. --mjpeg emits a raw MJPEG stream for live viewing
                (pipe '--mjpeg -' into: ffplay -f mjpeg -i -), --out saves frames as .jpg, and
                --audio-out saves the G.711 audio as a playable .wav.
+  ap preview   Connect, then open a live video window by piping the stream into a player
+               (default: ffplay -f mjpeg -i -). Override the player with --player.
   ap set       Connect, then send one device-control command (settings: camera, ir, motion-alert, move-grade, quality, white-led).
   ap sd-list   Connect, then list the SD-card recording catalogue (dates → hours → minutes).
 `
@@ -86,7 +99,7 @@ func (a *App) Run(ctx context.Context, args []string) int {
 
 func (a *App) runAP(ctx context.Context, args []string) int {
 	if len(args) == 0 {
-		a.errf("v720ctl ap: expected a subcommand (connect, live, set, sd-list)\n\n%s", usage)
+		a.errf("v720ctl ap: expected a subcommand (connect, live, preview, set, sd-list)\n\n%s", usage)
 		return 2
 	}
 	switch args[0] {
@@ -94,6 +107,8 @@ func (a *App) runAP(ctx context.Context, args []string) int {
 		return a.runAPConnect(ctx, args[1:])
 	case "live":
 		return a.runAPLive(ctx, args[1:])
+	case "preview":
+		return a.runAPPreview(ctx, args[1:])
 	case "set":
 		return a.runAPSet(ctx, args[1:])
 	case "sd-list":
