@@ -83,11 +83,19 @@ func TestAPSession_Connect_HappyPath(t *testing.T) {
 		t.Errorf("register frame = %v", reg)
 	}
 
-	// Frame 2 — time-sync code 4 (doc §12.3 step 6).
+	// Frame 2 — time-sync, 502-wrapped: {"code":502,"content":{"code":4,
+	// "devTarget":...,"unixTimer":...}} (doc §12.3 step 6, corrected).
 	sync := decodeControl(t, sent[2])
-	if sync["code"] != float64(4) || sync["devTarget"] != testDevID ||
-		sync["unixTimer"] != float64(fixed.Unix()) {
-		t.Errorf("time-sync frame = %v", sync)
+	if sync["code"] != float64(502) {
+		t.Errorf("time-sync outer code = %v, want 502", sync["code"])
+	}
+	syncContent, ok := sync["content"].(map[string]any)
+	if !ok {
+		t.Fatalf("time-sync content = %v, want a JSON object", sync["content"])
+	}
+	if syncContent["code"] != float64(4) || syncContent["devTarget"] != testDevID ||
+		syncContent["unixTimer"] != float64(fixed.Unix()) {
+		t.Errorf("time-sync content = %v", syncContent)
 	}
 
 	// Frame 3 — 500 authorize with the password in the "sk" field, sent

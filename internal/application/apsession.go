@@ -51,10 +51,15 @@ func NewAPSession(transport Transport, devID, password string) *APSession {
 
 // Connect performs the AP-mode handshake (doc §12.3): send the empty type-115
 // trigger, await the device's echo, register with the NaxclowToken, and send the
-// time-sync. The connection is established once the 501 registration is
-// confirmed and the time-sync is sent — that is the app's actual auto-handshake
-// (its OooOOO0 dispatcher only chains 115→501→time-sync), after which the device
-// streams video.
+// (502-wrapped) time-sync. The connection is established once the 501
+// registration is confirmed and the time-sync is sent — that is the app's actual
+// auto-handshake (its OooOOO0 dispatcher only chains 115→501→time-sync).
+//
+// Connect does NOT start the video stream: unlike an earlier reading of the
+// protocol, the device does not push frames just because the handshake finished.
+// The client must explicitly request streaming — see StartLiveView, which sends
+// the stream-start command (setLiveStreamMode 3). Connect only brings the session
+// up.
 //
 // Password authorization (code 500) is a SEPARATE, best-effort step, not part of
 // the handshake: the app sends it independently and never gates the session on
@@ -96,11 +101,20 @@ func (s *APSession) Connect(ctx context.Context) error {
 	}
 
 	// Step 6: time-sync (no acknowledgement expected). This completes the
-	// handshake; the device now streams.
-	timeSync := domain.Command{Code: domain.CodeTimeSync, Params: map[string]any{
-		"devTarget": s.devID,
-		"unixTimer": ts,
-	}}
+	// handshake.
+	//
+	// The time-sync is 502-WRAPPED, not a top-level code-4 message: the app builds
+	// {"devTarget","code":4,"unixTimer"} and sends it through the same
+	// OooO.OooO00o → sendApCommand path every device command uses, so the wire form
+	// is {"code":502,"content":{"code":4,"devTarget":...,"unixTimer":...}}. An
+	// earlier reading (doc §12.3 step 6) had this as an unwrapped {"code":4,...};
+	// a real-camera capture showed the device stays silent when sent unwrapped, so
+	// the wrapper matters. It is exactly a NewAPDeviceCommand carrying the
+	// time-sync code.
+	timeSync := domain.NewAPDeviceCommand(s.devID, domain.Command{
+		Code:   domain.CodeTimeSync,
+		Params: map[string]any{"unixTimer": ts},
+	})
 	if err := s.sendControl(ctx, timeSync); err != nil {
 		return fmt.Errorf("ap handshake: send time-sync: %w", err)
 	}

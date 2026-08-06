@@ -22,24 +22,33 @@ type AudioFrameHandler interface {
 	OnAudioFrame(codec domain.FrameType, data []byte) error
 }
 
-// StartLiveView consumes the AP-mode live stream, dispatching inbound media
-// frames to the handlers until the caller cancels ctx or an error occurs. It
-// must be called after a successful Connect.
+// StartLiveView starts the AP-mode live stream and consumes it, dispatching
+// inbound media frames to the handlers until the caller cancels ctx or an error
+// occurs. It must be called after a successful Connect.
 //
-// There is no start command to send: AP-mode live view auto-starts once the
-// handshake completes — Connect's type-115 trigger (reqLiveMotion) is itself the
-// request to stream, and the device then pushes frames (verified against the
-// decompiled OooOOO0/NaxclowApChannel; doc §12.3 step 8, corrected). This method
-// simply reads and routes those frames.
+// It first SENDS a stream-start command — {"code":502,"content":{"code":3,
+// "devTarget":...}}, i.e. the app's setLiveStreamMode(devId, 3). This is
+// required: the device streams nothing on its own after the handshake. An earlier
+// reading held that AP-mode live view auto-started (the type-115 trigger being
+// the request to stream); a real-camera capture disproved it — the handshake
+// completed but zero frames arrived until this command was sent. The app itself
+// sends it in response to the device's post-handshake ready notification; we send
+// it proactively once Connect has finished, which over the ordered TCP stream
+// reaches the device after the time-sync.
 //
 // Either handler may be nil, in which case frames of that kind are dropped (e.g.
 // pass a nil AudioFrameHandler for a video-only consumer). Non-media frames —
 // JSON control/stream-state notifications, keepalive pongs, no-ops — are ignored.
 //
 // Cancelling ctx is the normal way to stop; StartLiveView then returns nil and
-// the caller closes the transport to end the stream. Any other outcome (transport
-// failure, or a handler returning an error) is returned wrapped.
+// the caller closes the transport to end the stream (which is also how the app
+// stops AP-mode live view). Any other outcome (transport failure, or a handler
+// returning an error) is returned wrapped.
 func (s *APSession) StartLiveView(ctx context.Context, video VideoFrameHandler, audio AudioFrameHandler) error {
+	if err := s.sendControl(ctx, domain.NewStreamControl(s.devID, domain.StreamStart)); err != nil {
+		return fmt.Errorf("live view: start stream: %w", err)
+	}
+
 	for {
 		// Observe cancellation between frames independently of Receive. A
 		// Transport may deliver an already-buffered frame in preference to
