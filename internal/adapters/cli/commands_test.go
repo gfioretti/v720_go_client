@@ -156,15 +156,13 @@ func mockHandshake(conn net.Conn, devID string, registerStatus int) bool {
 	if registerStatus != 200 {
 		return false // client aborts; nothing more to exchange.
 	}
-	// step 6: consume the time-sync (code 4), no reply.
+	// step 6: consume the time-sync (code 4), no reply. This completes the
+	// handshake — the client is now connected. (A 500 authorize is best-effort
+	// and only sent when a password is configured; it's not part of the handshake
+	// and, if it arrives, is drained by the caller.)
 	if _, err := readStreamFrame(conn); err != nil {
 		return false
 	}
-	// step 7: confirm the 500 authorization.
-	if _, err := readStreamFrame(conn); err != nil {
-		return false
-	}
-	_ = writeStreamFrame(conn, jsonControl(map[string]any{"code": 500, "status": 200}))
 	return true
 }
 

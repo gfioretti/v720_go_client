@@ -16,16 +16,12 @@ import (
 const apToken = "NaxclowToken"
 
 // statusOK is the "status" value the device reports for a successful control
-// exchange (doc §12.3 steps 5 and 7).
+// exchange (doc §12.3 step 5, the 501 registration ack).
 const statusOK = 200
 
-// Errors surfaced by the AP-mode handshake, distinguishable with errors.Is.
-var (
-	// ErrHandshakeRegister means the device rejected the 501 registration.
-	ErrHandshakeRegister = errors.New("application: AP-mode registration rejected by device")
-	// ErrHandshakeAuth means the device rejected the 500 password authorization.
-	ErrHandshakeAuth = errors.New("application: AP-mode authorization rejected by device")
-)
+// ErrHandshakeRegister means the device rejected the 501 registration; it is
+// distinguishable with errors.Is.
+var ErrHandshakeRegister = errors.New("application: AP-mode registration rejected by device")
 
 // APSession drives a local AP-mode (camera's own Wi-Fi hotspot) session over a
 // single Transport. It is the application-layer counterpart of the app's
@@ -53,11 +49,21 @@ func NewAPSession(transport Transport, devID, password string) *APSession {
 	}
 }
 
-// Connect performs the AP-mode handshake end to end (doc §12.3 steps 2–7):
-// send the empty type-115 trigger, await the device's echo, register with the
-// NaxclowToken, send the time-sync, then authorize with the password. It
-// returns ErrHandshakeRegister / ErrHandshakeAuth if the device rejects a step,
-// or the transport/context error if the connection drops or ctx expires.
+// Connect performs the AP-mode handshake (doc §12.3): send the empty type-115
+// trigger, await the device's echo, register with the NaxclowToken, and send the
+// time-sync. The connection is established once the 501 registration is
+// confirmed and the time-sync is sent — that is the app's actual auto-handshake
+// (its OooOOO0 dispatcher only chains 115→501→time-sync), after which the device
+// streams video.
+//
+// Password authorization (code 500) is a SEPARATE, best-effort step, not part of
+// the handshake: the app sends it independently and never gates the session on
+// its response (its dispatcher only logs success/failure). Confirmed against a
+// real camera — a no-password camera does not answer a 500 at all. So Connect
+// sends the 500 only when a password is set, and never waits for an ack.
+//
+// It returns ErrHandshakeRegister if the device rejects the 501 registration, or
+// the transport/context error if the connection drops or ctx expires.
 func (s *APSession) Connect(ctx context.Context) error {
 	// Step 2: announce ourselves with a bare type-115 frame (no JSON body).
 	if err := s.transport.Send(ctx, domain.Frame{Type: domain.FrameTypeHandshakeTrigger}); err != nil {
@@ -89,7 +95,8 @@ func (s *APSession) Connect(ctx context.Context) error {
 		return fmt.Errorf("%w: status %d", ErrHandshakeRegister, status)
 	}
 
-	// Step 6: time-sync (no acknowledgement expected).
+	// Step 6: time-sync (no acknowledgement expected). This completes the
+	// handshake; the device now streams.
 	timeSync := domain.Command{Code: domain.CodeTimeSync, Params: map[string]any{
 		"devTarget": s.devID,
 		"unixTimer": ts,
@@ -98,17 +105,16 @@ func (s *APSession) Connect(ctx context.Context) error {
 		return fmt.Errorf("ap handshake: send time-sync: %w", err)
 	}
 
-	// Step 7: authorize with the password in the "sk" field.
-	authorize := domain.Command{Code: domain.CodeAuthorize, Params: map[string]any{
-		"sk": s.password,
-	}}
-	if err := s.sendControl(ctx, authorize); err != nil {
-		return fmt.Errorf("ap handshake: send authorize: %w", err)
-	}
-	if status, err := s.awaitCode(ctx, domain.CodeAuthorize); err != nil {
-		return fmt.Errorf("ap handshake: await authorize ack: %w", err)
-	} else if status != statusOK {
-		return fmt.Errorf("%w: status %d", ErrHandshakeAuth, status)
+	// Step 7 (separate, best-effort): password authorization. Sent only when a
+	// password is configured, and never awaited — the device does not reliably
+	// ack it, and the session is not gated on it (see the method doc).
+	if s.password != "" {
+		authorize := domain.Command{Code: domain.CodeAuthorize, Params: map[string]any{
+			"sk": s.password,
+		}}
+		if err := s.sendControl(ctx, authorize); err != nil {
+			return fmt.Errorf("ap handshake: send authorize: %w", err)
+		}
 	}
 
 	return nil

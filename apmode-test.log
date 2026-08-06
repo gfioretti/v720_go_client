@@ -1,0 +1,42 @@
+=== apmode-test Thu Aug  6 06:48:01 CEST 2026 ===
+device=080c0e07D735 addr=192.168.169.1:6123 password=none
+
+--- [1] this Mac's Wi-Fi address (expect 192.168.169.x) ---
+	inet 192.168.169.100 netmask 0xffffff00 broadcast 192.168.169.255
+--- route to the camera ---
+  interface: en0
+
+--- [2] is 192.168.169.1:6123 reachable? ---
+Connection to 192.168.169.1 port 6123 [tcp/backup-express] succeeded!
+6123 OPEN
+
+--- [3] rebuild client if missing ---
+binary: present
+
+--- [4] connect / handshake (smallest test) ---
+debug: -> SEND HandshakeTrigger len=0 seq=0
+debug: <- RECV HandshakeTrigger len=0 seq=0
+debug: -> SEND JSON len=82 seq=0 {"code":501,"target":"080c0e07D735","token":"NaxclowToken","unixTimer":1785998881}
+debug: <- RECV JSON len=51 seq=0 { "code":501, "target":"080c0e07D735","status":200}
+debug: -> SEND JSON len=60 seq=0 {"code":4,"devTarget":"080c0e07D735","unixTimer":1785998881}
+debug: -> SEND JSON len=20 seq=0 {"code":500,"sk":""}
+debug: <- RECV error: context deadline exceeded
+v720ctl: handshake failed: ap handshake: await authorize ack: context deadline exceeded
+connect exit=1
+
+--- [5] live capture: 10s, frames -> ./capture/ ---
+debug: -> SEND HandshakeTrigger len=0 seq=0
+debug: <- RECV HandshakeTrigger len=0 seq=0
+debug: -> SEND JSON len=82 seq=0 {"code":501,"target":"080c0e07D735","token":"NaxclowToken","unixTimer":1785998889}
+debug: <- RECV JSON len=51 seq=0 { "code":501, "target":"080c0e07D735","status":200}
+debug: -> SEND JSON len=60 seq=0 {"code":4,"devTarget":"080c0e07D735","unixTimer":1785998889}
+debug: -> SEND JSON len=20 seq=0 {"code":500,"sk":""}
+debug: <- RECV error: context deadline exceeded
+v720ctl: handshake failed: ap handshake: await authorize ack: context deadline exceeded
+live exit=1
+
+--- [6] captured frames ---
+total 0
+frame count: 0
+
+=== done — reconnect to your home Wi-Fi and tell me 'done' ===
