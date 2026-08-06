@@ -235,7 +235,7 @@ The 20-byte header described in section 12.3a for `NaxclowApChannel` is used, by
 
 ### 12.3 AP-mode handshake (`OooOOO0` + `NaxclowApChannel`) — fully confirmed, byte-accurate
 
-1. TCP connect `NaxclowApChannel` directly to `host:port` (per `a9-v720`, camera's own AP-mode IP is `192.168.169.1`; exact port still to be confirmed empirically).
+1. TCP connect `NaxclowApChannel` directly to `host:port`. **Confirmed (2026-08-06) from the app: AP-mode address is hardcoded `192.168.169.1:6123`** — appears verbatim across `ApRotateDeviceActivity.openConnection(devId, "192.168.169.1", 6123, …)`, `UdpDeviceActivity.setHost("192.168.169.1")`/`setTcpPort(6123)`, and `startDiscovery("192.168.169.1", 6123)` in several activities. (Supersedes the earlier "port TBD empirically" note; the IP matches the `a9-v720` project.)
 2. On connect (`channelActive`), client immediately sends an **empty** frame with packet type tag `115` (`reqLiveMotion()` — no JSON body, just the bare 20-byte header).
 3. Device echoes back a type-`115` packet.
 4. Client's dispatcher sees the inbound `115` and responds with `reqConnect(devId, "NaxclowToken")`, sending `{"code":501, "target":"<devId>", "token":"NaxclowToken", "unixTimer": <unix epoch seconds + local timezone offset in seconds>}`. `"NaxclowToken"` is a **hardcoded literal string** in the app, not derived from anything device-specific.
