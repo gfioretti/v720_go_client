@@ -24,6 +24,7 @@ func (a *App) runAPLive(ctx context.Context, args []string) int {
 	connectTimeout := fs.Duration("connect-timeout", 10*time.Second, "handshake timeout")
 	duration := fs.Duration("duration", 0, "how long to stream (0 = until interrupted)")
 	outDir := fs.String("out", "", "directory to write MJPEG frames as .jpg (empty = count only)")
+	debug := fs.Bool("debug", false, "log every frame sent/received to stderr")
 	if err := fs.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return 0
@@ -49,7 +50,7 @@ func (a *App) runAPLive(ctx context.Context, args []string) int {
 	// The handshake is bounded by its own deadline; the stream is not (it runs
 	// until --duration or the parent ctx, e.g. Ctrl-C).
 	connectCtx, cancel := context.WithTimeout(ctx, *connectTimeout)
-	session, transport, err := a.dialAndConnect(connectCtx, *addr, *dev, *password)
+	session, transport, err := a.dialAndConnect(connectCtx, *addr, *dev, *password, *debug)
 	cancel()
 	if err != nil {
 		a.errf("v720ctl: %v\n", err)

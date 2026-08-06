@@ -45,6 +45,7 @@ func (a *App) runAPSet(ctx context.Context, args []string) int {
 	dev := fs.String("dev", "", "device id / target (required)")
 	password := fs.String("password", "", "device password (the sk value)")
 	timeout := fs.Duration("timeout", 10*time.Second, "connect timeout")
+	debug := fs.Bool("debug", false, "log every frame sent/received to stderr")
 	if err := fs.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return 0
@@ -74,7 +75,7 @@ func (a *App) runAPSet(ctx context.Context, args []string) int {
 	}
 
 	connectCtx, cancel := context.WithTimeout(ctx, *timeout)
-	session, transport, err := a.dialAndConnect(connectCtx, *addr, *dev, *password)
+	session, transport, err := a.dialAndConnect(connectCtx, *addr, *dev, *password, *debug)
 	cancel()
 	if err != nil {
 		a.errf("v720ctl: %v\n", err)

@@ -104,11 +104,15 @@ func (a *App) runAP(ctx context.Context, args []string) int {
 
 // dialAndConnect dials the transport and runs the AP-mode handshake, returning
 // the connected session and its transport (which the caller must Close). ctx
-// should carry the connect deadline. On failure the transport is closed here.
-func (a *App) dialAndConnect(ctx context.Context, addr, dev, password string) (*application.APSession, application.Transport, error) {
+// should carry the connect deadline. When debug is set, the transport is wrapped
+// so every frame is logged to stderr. On failure the transport is closed here.
+func (a *App) dialAndConnect(ctx context.Context, addr, dev, password string, debug bool) (*application.APSession, application.Transport, error) {
 	transport, err := a.Dial(ctx, addr)
 	if err != nil {
 		return nil, nil, fmt.Errorf("connect: %w", err)
+	}
+	if debug {
+		transport = newDebugTransport(transport, a.errf)
 	}
 	session := application.NewAPSession(transport, dev, password)
 	if err := session.Connect(ctx); err != nil {
@@ -125,6 +129,7 @@ func (a *App) runAPConnect(ctx context.Context, args []string) int {
 	dev := fs.String("dev", "", "device id / target (required)")
 	password := fs.String("password", "", "device password (the sk value)")
 	timeout := fs.Duration("timeout", 10*time.Second, "overall connect timeout (dial + handshake)")
+	debug := fs.Bool("debug", false, "log every frame sent/received to stderr")
 	if err := fs.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
 			return 0 // an explicit -h/--help is not a usage error
@@ -143,7 +148,7 @@ func (a *App) runAPConnect(ctx context.Context, args []string) int {
 	ctx, cancel := context.WithTimeout(ctx, *timeout)
 	defer cancel()
 
-	_, transport, err := a.dialAndConnect(ctx, *addr, *dev, *password)
+	_, transport, err := a.dialAndConnect(ctx, *addr, *dev, *password, *debug)
 	if err != nil {
 		a.errf("v720ctl: %v\n", err)
 		return 1
