@@ -52,14 +52,15 @@ const usage = `v720ctl — independent client for the V720 / A9 Mini WiFi camera
 
 Usage:
   v720ctl ap connect --addr <host:port> --dev <devId> [--password <pwd>] [--timeout <dur>]
-  v720ctl ap live    --addr <host:port> --dev <devId> [--password <pwd>] [--mjpeg -|<file>] [--out <dir>] [--duration <dur>]
+  v720ctl ap live    --addr <host:port> --dev <devId> [--password <pwd>] [--mjpeg -|<file>] [--out <dir>] [--audio-out <file.wav>] [--duration <dur>]
   v720ctl ap set --addr <host:port> --dev <devId> [--password <pwd>] <setting> <value>
   v720ctl ap sd-list --addr <host:port> --dev <devId> [--password <pwd>]
 
 Commands:
   ap connect   Connect over the camera's AP-mode Wi-Fi hotspot and run the handshake.
   ap live      Connect, then stream live view. --mjpeg emits a raw MJPEG stream for live viewing
-               (pipe '--mjpeg -' into: ffplay -f mjpeg -i -), and/or --out saves frames as .jpg.
+               (pipe '--mjpeg -' into: ffplay -f mjpeg -i -), --out saves frames as .jpg, and
+               --audio-out saves the G.711 audio as a playable .wav.
   ap set       Connect, then send one device-control command (settings: camera, ir, motion-alert, move-grade, quality, white-led).
   ap sd-list   Connect, then list the SD-card recording catalogue (dates → hours → minutes).
 `
