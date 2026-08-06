@@ -83,11 +83,9 @@ PWARG=""
 	echo
 	echo "--- [7] live preview: 8s ffplay window ---"
 	if command -v ffplay >/dev/null 2>&1; then
-		echo "opening an ffplay window for 8s (it auto-closes)..."
-		# -autoexit so ffplay quits at end-of-stream instead of waiting for you.
+		echo "opening an ffplay window for 8s (the default player is -autoexit, so it auto-closes)..."
 		# shellcheck disable=SC2086
-		./v720ctl ap preview --addr "$ADDR" --dev "$DEV" $PWARG --duration 8s \
-			--player "ffplay -autoexit -f mjpeg -i -"
+		./v720ctl ap preview --addr "$ADDR" --dev "$DEV" $PWARG --duration 8s
 		echo "preview exit=$?"
 	else
 		echo "ffplay not installed — skipping. Install ffmpeg to try 'v720ctl ap preview'."
