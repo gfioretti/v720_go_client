@@ -108,9 +108,27 @@ func TestStartLiveView_DispatchesMediaUntilCancel(t *testing.T) {
 		t.Errorf("audio codecs = %v", sink.audios)
 	}
 
-	// AP-mode live view is receive-only: the session emits no start/stop command.
-	if n := len(ft.sentFrames()); n != 0 {
-		t.Fatalf("sent %d frames, want 0 (AP live view sends nothing)", n)
+	// StartLiveView must emit exactly one outbound frame: the stream-start
+	// command {"code":502,"content":{"code":3,"devTarget":...}}. Without it the
+	// device streams nothing.
+	sent := ft.sentFrames()
+	if len(sent) != 1 {
+		t.Fatalf("sent %d frames, want 1 (the stream-start command): %+v", len(sent), sent)
+	}
+	start := decodeControl(t, sent[0])
+	content, ok := start["content"].(map[string]any)
+	if start["code"] != float64(502) || !ok ||
+		content["code"] != float64(3) || content["devTarget"] != testDevID {
+		t.Fatalf("stream-start frame = %v, want 502-wrapped inner code 3", start)
+	}
+}
+
+// streamStartOnly asserts ft sent exactly the single stream-start command and
+// nothing else — the invariant for any StartLiveView run that starts then stops.
+func assertStreamStartOnly(t *testing.T, ft *fakeTransport) {
+	t.Helper()
+	if n := len(ft.sentFrames()); n != 1 {
+		t.Fatalf("sent %d frames, want 1 (only the stream-start command)", n)
 	}
 }
 
@@ -185,9 +203,7 @@ func TestStartLiveView_AudioHandlerErrorStopsStream(t *testing.T) {
 	if !errors.Is(err, sinkErr) {
 		t.Fatalf("StartLiveView = %v, want it to wrap the audio-handler error", err)
 	}
-	if n := len(ft.sentFrames()); n != 0 {
-		t.Fatalf("sent %d frames, want 0", n)
-	}
+	assertStreamStartOnly(t, ft)
 }
 
 func TestStartLiveView_SinkErrorStopsStream(t *testing.T) {
@@ -202,9 +218,7 @@ func TestStartLiveView_SinkErrorStopsStream(t *testing.T) {
 	if !errors.Is(err, sinkErr) {
 		t.Fatalf("StartLiveView = %v, want it to wrap the sink error", err)
 	}
-	if n := len(ft.sentFrames()); n != 0 {
-		t.Fatalf("sent %d frames, want 0", n)
-	}
+	assertStreamStartOnly(t, ft)
 }
 
 func TestStartLiveView_TransportErrorPropagates(t *testing.T) {
