@@ -223,6 +223,12 @@ func serveMockCamera(t *testing.T, handle func(net.Conn)) string {
 	return ln.Addr().String()
 }
 
+// drain reads and discards from conn until the client hangs up, keeping the
+// connection open so the client's final reads aren't cut short.
+func drain(conn net.Conn) {
+	_, _ = io.Copy(io.Discard, conn)
+}
+
 func jsonControl(m map[string]any) domain.Frame {
 	b, _ := json.Marshal(m)
 	return domain.Frame{Type: domain.FrameTypeJSON, Payload: b}
