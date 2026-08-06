@@ -8,9 +8,12 @@ import (
 	"v720_go_client/internal/domain"
 )
 
-// VideoFrameHandler receives live video frame payloads. The confirmed payload is
-// MJPEG (a JPEG image per frame, doc §12.4). It is a driven port: the caller
-// (CLI, recorder, GUI) implements it. A returned error stops live view.
+// VideoFrameHandler receives one complete MJPEG image per call (a full JPEG,
+// SOI…EOI). StartLiveView reassembles these from the fragmented wire frames
+// before dispatching — the camera splits each image across several
+// FrameTypeMJPEG frames (doc §12.4), so a handler never sees a partial image. It
+// is a driven port: the caller (CLI, recorder, GUI) implements it. A returned
+// error stops live view.
 type VideoFrameHandler interface {
 	OnVideoFrame(data []byte) error
 }
@@ -49,6 +52,9 @@ func (s *APSession) StartLiveView(ctx context.Context, video VideoFrameHandler, 
 		return fmt.Errorf("live view: start stream: %w", err)
 	}
 
+	// video arrives as fragments; reassemble whole JPEGs before dispatching.
+	var video2jpeg domain.MJPEGReassembler
+
 	for {
 		// Observe cancellation between frames independently of Receive. A
 		// Transport may deliver an already-buffered frame in preference to
@@ -69,9 +75,13 @@ func (s *APSession) StartLiveView(ctx context.Context, video VideoFrameHandler, 
 
 		switch {
 		case f.Type.IsVideo():
+			// Feed the fragment even when video is nil is pointless, so gate on it;
+			// each fragment may complete zero, one, or several images.
 			if video != nil {
-				if err := video.OnVideoFrame(f.Payload); err != nil {
-					return fmt.Errorf("live view: video handler: %w", err)
+				for _, img := range video2jpeg.Append(f.Payload) {
+					if err := video.OnVideoFrame(img); err != nil {
+						return fmt.Errorf("live view: video handler: %w", err)
+					}
 				}
 			}
 		case f.Type.IsAudio():

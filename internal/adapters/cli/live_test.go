@@ -150,9 +150,11 @@ func TestRun_ApUnknownSubcommand(t *testing.T) {
 // End-to-end: connect + stream, counting frames, over the real aptcp adapter.
 func TestRun_LiveCountsFrames(t *testing.T) {
 	const devID = "dev123"
+	// Each video frame is a complete single-fragment JPEG so the reassembler emits
+	// two whole images.
 	media := []domain.Frame{
-		{Type: domain.FrameTypeMJPEG, Payload: []byte("jpeg1")},
-		{Type: domain.FrameTypeMJPEG, Payload: []byte("jpeg2")},
+		{Type: domain.FrameTypeMJPEG, Payload: []byte("\xff\xd8jpeg1\xff\xd9")},
+		{Type: domain.FrameTypeMJPEG, Payload: []byte("\xff\xd8jpeg2\xff\xd9")},
 		{Type: domain.FrameTypeAudioG711, Payload: []byte("g711")},
 	}
 	addr := startMockCameraStreaming(t, devID, media)

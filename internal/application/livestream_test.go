@@ -16,6 +16,14 @@ type audioRec struct {
 	data  []byte
 }
 
+// mjpegImage builds a complete one-fragment JPEG (SOI + body + EOI) so a test can
+// push a self-contained image through StartLiveView's reassembler.
+func mjpegImage(body string) []byte {
+	out := []byte{0xFF, 0xD8}
+	out = append(out, body...)
+	return append(out, 0xFF, 0xD9)
+}
+
 // recordingSink implements both VideoFrameHandler and AudioFrameHandler, records
 // what it receives, and closes done once stopAfter frames have arrived so a test
 // can deterministically know when to cancel.
@@ -76,9 +84,10 @@ func TestStartLiveView_DispatchesMediaUntilCancel(t *testing.T) {
 	s := NewAPSession(ft, testDevID, testPassword)
 	sink := newRecordingSink(3)
 
-	// One frame of each media kind, plus noise the loop must ignore.
+	// One frame of each media kind, plus noise the loop must ignore. The video is
+	// a complete single-fragment JPEG so the reassembler emits it immediately.
 	ft.push(domain.Frame{Type: domain.FrameTypeJSON, Payload: []byte(`{"code":298}`)})
-	ft.push(domain.Frame{Type: domain.FrameTypeMJPEG, Payload: []byte("jpeg")})
+	ft.push(domain.Frame{Type: domain.FrameTypeMJPEG, Payload: mjpegImage("jpeg")})
 	ft.push(domain.Frame{Type: domain.FrameTypeNoop})
 	ft.push(domain.Frame{Type: domain.FrameTypeAudioG711, Payload: []byte("g711")})
 	ft.push(domain.Frame{Type: domain.FrameTypeAudioPCM, Payload: []byte("pcm")})
@@ -101,7 +110,7 @@ func TestStartLiveView_DispatchesMediaUntilCancel(t *testing.T) {
 	if v, a := sink.counts(); v != 1 || a != 2 {
 		t.Fatalf("received %d video / %d audio, want 1 / 2", v, a)
 	}
-	if !bytes.Equal(sink.videos[0], []byte("jpeg")) {
+	if !bytes.Equal(sink.videos[0], mjpegImage("jpeg")) {
 		t.Errorf("video payload = %q", sink.videos[0])
 	}
 	if sink.audios[0].codec != domain.FrameTypeAudioG711 || sink.audios[1].codec != domain.FrameTypeAudioPCM {
@@ -178,10 +187,10 @@ func TestStartLiveView_ObservesCancelWithFramesBuffered(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	sink := &cancelOnFirstSink{cancel: cancel}
 
-	// Two frames buffered up front; the first cancels. Without the loop's own
-	// ctx check, the drain-first transport would still hand over the second.
-	ft.push(domain.Frame{Type: domain.FrameTypeMJPEG, Payload: []byte("f1")})
-	ft.push(domain.Frame{Type: domain.FrameTypeMJPEG, Payload: []byte("f2")})
+	// Two complete images buffered up front; the first cancels. Without the loop's
+	// own ctx check, the drain-first transport would still hand over the second.
+	ft.push(domain.Frame{Type: domain.FrameTypeMJPEG, Payload: mjpegImage("f1")})
+	ft.push(domain.Frame{Type: domain.FrameTypeMJPEG, Payload: mjpegImage("f2")})
 
 	if err := s.StartLiveView(ctx, sink, nil); err != nil {
 		t.Fatalf("StartLiveView = %v, want nil", err)
@@ -212,7 +221,7 @@ func TestStartLiveView_SinkErrorStopsStream(t *testing.T) {
 	sinkErr := errors.New("disk full")
 	sink := &recordingSink{videoErr: sinkErr, done: make(chan struct{})}
 
-	ft.push(domain.Frame{Type: domain.FrameTypeMJPEG, Payload: []byte("jpeg")})
+	ft.push(domain.Frame{Type: domain.FrameTypeMJPEG, Payload: mjpegImage("jpeg")})
 
 	err := s.StartLiveView(context.Background(), sink, sink)
 	if !errors.Is(err, sinkErr) {
