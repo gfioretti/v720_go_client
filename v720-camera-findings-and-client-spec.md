@@ -321,6 +321,10 @@ Newly confirmed while reading the source: code **`207`** and code **`299`** are 
 
 Same numeric codes are used by `NaxclowApChannel` (AP-mode, addresses with `target`=devId directly) and `NaxclowSdcardChannel` (P2P/relay-mode, addresses with `forwardId` — obtained via the phase-1 `36`/`37` exchange in section 12.2 — plus a separate `devId` field). `NaxclowSdcardChannel` additionally sends `{"code":110, "forwardId":...}` (`reqRegister`) on connect, before any of the codes below, which has no AP-mode equivalent.
 
+**AP-mode send format confirmed (2026-08-06) from `NaxclowApChannel`:** unlike the device-control commands in 12.5, these SD-card commands are **NOT** `502`-wrapped — each is built as a flat map and sent directly via `sendProtoBeanWithTimeout`, i.e. a bare type-`0` frame `{"code":N, "target":"<devId>", ...}`. Confirmed field sets: `404`/`406`/`412` all carry `target`+`date`+`hours`+`minute`; `402` carries `target`+`date`; `400`/`408`/`414`/`418` carry only `target`; `416` carries `target`+`albumPageId`. `date` is an integer (e.g. `20260805`). The two obscured album-delete codes (below) are `TypedValues.CycleType.TYPE_CUSTOM_WAVE_SHAPE` and `TypedValues.CycleType.TYPE_EASING` (jadx-mislabeled constants; real ints still need an IDE lookup).
+
+**Type-`8` XML schema confirmed (2026-08-06) from the SAX handler `C3039OooO0o0`** (the recording catalogue): `<video>` root → one `<catalogue date="20260805" hNumb="N">` per date (`hNumb` = number of hour entries) → `<option hours="14" minBin="M">` per hour, where **`minBin` is a 64-bit decimal bitmask**: bit *i* set means minute *i* of that hour has a recording. Parsed into `Map<date, Map<hour, List<minute>>>`. So the catalogue answers "which date/hour/minute recordings exist", and 404/406/412 then act on a chosen `date`+`hours`+`minute`.
+
 | Code | Direction | Fields (AP-mode / P2P-relay-mode) | Purpose |
 |---|---|---|---|
 | 400 | out | `target` / `forwardId` | Request SD-card date list |
