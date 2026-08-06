@@ -64,6 +64,7 @@ Usage:
   v720ctl ap connect --addr <host:port> --dev <devId> [--password <pwd>] [--timeout <dur>]
   v720ctl ap live    --addr <host:port> --dev <devId> [--password <pwd>] [--mjpeg -|<file>] [--out <dir>] [--audio-out <file.wav>] [--duration <dur>]
   v720ctl ap preview --addr <host:port> --dev <devId> [--password <pwd>] [--player <cmd>] [--duration <dur>]
+  v720ctl ap serve   --addr <host:port> --dev <devId> [--password <pwd>] [--http :8080]
   v720ctl ap set --addr <host:port> --dev <devId> [--password <pwd>] <setting> <value>
   v720ctl ap sd-list --addr <host:port> --dev <devId> [--password <pwd>]
 
@@ -74,6 +75,8 @@ Commands:
                --audio-out saves the G.711 audio as a playable .wav.
   ap preview   Connect, then open a live video window by piping the stream into a player
                (default: ffplay -f mjpeg -i -). Override the player with --player.
+  ap serve     Connect, then serve the live view over HTTP (default :8080) as an MJPEG
+               stream — open the printed URL in any browser to watch it like a webcam.
   ap set       Connect, then send one device-control command (settings: camera, ir, motion-alert, move-grade, quality, white-led).
   ap sd-list   Connect, then list the SD-card recording catalogue (dates → hours → minutes).
 `
@@ -99,7 +102,7 @@ func (a *App) Run(ctx context.Context, args []string) int {
 
 func (a *App) runAP(ctx context.Context, args []string) int {
 	if len(args) == 0 {
-		a.errf("v720ctl ap: expected a subcommand (connect, live, preview, set, sd-list)\n\n%s", usage)
+		a.errf("v720ctl ap: expected a subcommand (connect, live, preview, serve, set, sd-list)\n\n%s", usage)
 		return 2
 	}
 	switch args[0] {
@@ -109,6 +112,8 @@ func (a *App) runAP(ctx context.Context, args []string) int {
 		return a.runAPLive(ctx, args[1:])
 	case "preview":
 		return a.runAPPreview(ctx, args[1:])
+	case "serve":
+		return a.runAPServe(ctx, args[1:])
 	case "set":
 		return a.runAPSet(ctx, args[1:])
 	case "sd-list":
