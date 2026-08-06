@@ -1,8 +1,9 @@
 #!/bin/sh
 # apmode-test.sh — run this while connected to the camera's Nax_* Wi-Fi.
 # It needs NO internet. Output is shown LIVE in your terminal and also saved to
-# apmode-test.log; ~10s of video frames go to ./capture/, so you can reconnect to
-# your home Wi-Fi afterward and we'll review the results together.
+# apmode-test.log. ~10s of video frames go to ./capture/ and the decoded audio to
+# ./capture/audio.wav; step [7] briefly pops open a live ffplay window (if ffplay
+# is installed). Reconnect to your home Wi-Fi afterward and we'll review together.
 #
 # Usage (from the project directory):
 #   ./apmode-test.sh                     # uses the default device id, no password
@@ -57,16 +58,40 @@ PWARG=""
 	echo "connect exit=$?"
 
 	echo
-	echo "--- [5] live capture: 10s, frames -> ./capture/ ---"
+	echo "--- [5] live capture: 10s, frames -> ./capture/, audio -> ./capture/audio.wav ---"
 	rm -rf ./capture && mkdir -p ./capture
 	# shellcheck disable=SC2086
-	./v720ctl ap live --addr "$ADDR" --dev "$DEV" $PWARG --debug --duration 10s --out ./capture
+	./v720ctl ap live --addr "$ADDR" --dev "$DEV" $PWARG --debug --duration 10s \
+		--out ./capture --audio-out ./capture/audio.wav
 	echo "live exit=$?"
 
 	echo
-	echo "--- [6] captured frames ---"
-	ls -l ./capture 2>/dev/null | head -5
-	echo "frame count: $(ls ./capture 2>/dev/null | wc -l | tr -d ' ')"
+	echo "--- [6] captured frames + audio ---"
+	echo "frame count: $(ls ./capture/frame-*.jpg 2>/dev/null | wc -l | tr -d ' ')"
+	if [ -f ./capture/audio.wav ]; then
+		echo "audio.wav size: $(wc -c < ./capture/audio.wav | tr -d ' ') bytes"
+		# afinfo (macOS) prints sample rate / duration; fall back to file(1).
+		if command -v afinfo >/dev/null 2>&1; then
+			afinfo ./capture/audio.wav 2>&1 | grep -Ei 'data format|duration|sample rate' | head -4
+		else
+			file ./capture/audio.wav
+		fi
+	else
+		echo "audio.wav: NOT created (no G.711 audio frames received?)"
+	fi
+
+	echo
+	echo "--- [7] live preview: 8s ffplay window ---"
+	if command -v ffplay >/dev/null 2>&1; then
+		echo "opening an ffplay window for 8s (it auto-closes)..."
+		# -autoexit so ffplay quits at end-of-stream instead of waiting for you.
+		# shellcheck disable=SC2086
+		./v720ctl ap preview --addr "$ADDR" --dev "$DEV" $PWARG --duration 8s \
+			--player "ffplay -autoexit -f mjpeg -i -"
+		echo "preview exit=$?"
+	else
+		echo "ffplay not installed — skipping. Install ffmpeg to try 'v720ctl ap preview'."
+	fi
 
 	echo
 	echo "=== done — reconnect to your home Wi-Fi and tell me 'done' ==="
