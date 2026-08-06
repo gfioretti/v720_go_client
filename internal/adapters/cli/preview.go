@@ -14,7 +14,19 @@ import (
 
 // defaultPlayerCommand plays a raw MJPEG stream arriving on stdin. ffplay is part
 // of ffmpeg and reads the concatenated-JPEG stream our reassembler produces.
-var defaultPlayerCommand = []string{"ffplay", "-f", "mjpeg", "-i", "-"}
+//
+// The flags tune it for a LIVE feed:
+//   - -autoexit: quit (close the window) when the stream ends, rather than
+//     freezing on the last frame until the user presses q.
+//   - -fflags nobuffer / -flags low_delay: minimise added latency.
+//   - -framerate 15: the camera streams roughly this rate; without a hint ffplay
+//     assumes 25 fps and plays the feed too fast, draining its buffer (observed
+//     against a real camera at ~10 fps). Slightly over-specifying keeps latency
+//     from accumulating. Override with --player for a different camera/quality.
+var defaultPlayerCommand = []string{
+	"ffplay", "-autoexit", "-fflags", "nobuffer", "-flags", "low_delay",
+	"-framerate", "15", "-f", "mjpeg", "-i", "-",
+}
 
 // runAPPreview connects and opens a live video window by streaming the
 // reassembled MJPEG into a media player (ffplay by default) until the player is

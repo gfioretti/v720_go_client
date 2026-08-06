@@ -51,8 +51,8 @@ func TestRun_PreviewStreamsToPlayer(t *testing.T) {
 		t.Fatalf("exit code = %d, want 0 (stderr: %q)", code, errb.String())
 	}
 	// Default player command and the streamed image both must be right.
-	if strings.Join(fp.command, " ") != "ffplay -f mjpeg -i -" {
-		t.Errorf("player command = %v, want default ffplay", fp.command)
+	if strings.Join(fp.command, " ") != strings.Join(defaultPlayerCommand, " ") {
+		t.Errorf("player command = %v, want default ffplay %v", fp.command, defaultPlayerCommand)
 	}
 	if !bytes.Equal(fp.stdin.Bytes(), jpeg) {
 		t.Errorf("streamed %q to player, want %q", fp.stdin.Bytes(), jpeg)
