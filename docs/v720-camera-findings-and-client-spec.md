@@ -43,7 +43,7 @@ Camera-relevant native libraries (`lib/arm64-v8a/`):
 
 Not camera-protocol-relevant (generic third-party SDKs, safe to ignore): `libbarhopper_v3.so` (Google ML Kit barcode scanner, used for QR pairing), `libapplovin-native-crash-reporter.so` (AppLovin ads SDK), `libapminsighta.so`/`libapminsightb.so` (APM/telemetry), `libimage_processing_util_jni.so`/`libsurface_util_jni.so` (Android CameraX — used for the *phone's own* camera during setup, not the IP camera), `libtt_ugen_layout.so`, `libfile_lock_pgl.so`/`libpglarmor.so`/`libbuffer_pgl.so`, `libc++_shared.so`.
 
-Audio codec: **G.711 A-law** (`G711Codec` class in the app; independently confirmed by the `a9-v720` project's own findings on this camera family).
+Audio codec: **G.711 A-law** (`G711Codec` class in the app; independently confirmed by the `a9-v720` project's own findings on this camera family). **Format: 8 kHz, mono, one A-law byte per sample** — confirmed 2026-08-06 from the app config (`audio_play_sample_rate`/`audio_send_sample_rate` = `8000`, `audioPlaySampleRate: 8000` throughout `ConfigDevice`/`UdpDeviceActivity2`). Each tag-`4` payload is a run of A-law samples; expand each byte to signed 16-bit linear PCM (standard ITU-T G.711 A-law) for a WAV/PCM sink. The Go client does this in `domain.DecodeALaw`.
 
 Video codec: not directly confirmed from static analysis — FFmpeg's presence suggests H.264 is likely, but this should be verified against captured traffic.
 
