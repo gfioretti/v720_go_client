@@ -1,9 +1,10 @@
 #!/bin/sh
 # apmode-test.sh — run this while connected to the camera's Nax_* Wi-Fi.
 # It needs NO internet. Output is shown LIVE in your terminal and also saved to
-# apmode-test.log. ~10s of video frames go to ./capture/ and the decoded audio to
-# ./capture/audio.wav; step [7] briefly pops open a live ffplay window (if ffplay
-# is installed). Reconnect to your home Wi-Fi afterward and we'll review together.
+# apmode-test.log. ~10s of video frames go to ./capture/, the decoded audio to
+# ./capture/audio.wav, and a muxed ./capture/clip.mp4 (video + audio); step [7]
+# briefly pops open a live ffplay window (if ffplay is installed). Reconnect to
+# your home Wi-Fi afterward and we'll review together.
 #
 # Usage (from the project directory):
 #   ./apmode-test.sh                     # uses the default device id, no password
@@ -89,6 +90,27 @@ PWARG=""
 		echo "preview exit=$?"
 	else
 		echo "ffplay not installed — skipping. Install ffmpeg to try 'v720ctl ap preview'."
+	fi
+
+	echo
+	echo "--- [8] record 10s to a single MP4 (video + synced audio) ---"
+	if command -v ffmpeg >/dev/null 2>&1; then
+		# shellcheck disable=SC2086
+		./v720ctl ap record --addr "$ADDR" --dev "$DEV" $PWARG --duration 10s --out ./capture/clip.mp4
+		echo "record exit=$?"
+		if [ -f ./capture/clip.mp4 ]; then
+			echo "clip.mp4 size: $(wc -c < ./capture/clip.mp4 | tr -d ' ') bytes"
+			if command -v ffprobe >/dev/null 2>&1; then
+				ffprobe -hide_banner -loglevel error \
+					-show_entries format=duration,format_name \
+					-show_entries stream=codec_type,codec_name,width,height,sample_rate \
+					-of default=noprint_wrappers=1 ./capture/clip.mp4
+			fi
+		else
+			echo "clip.mp4: NOT created"
+		fi
+	else
+		echo "ffmpeg not installed — skipping. Install ffmpeg (brew install ffmpeg) to record MP4."
 	fi
 
 	echo
