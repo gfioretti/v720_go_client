@@ -41,7 +41,9 @@ type AudioFrameHandler interface {
 //
 // Either handler may be nil, in which case frames of that kind are dropped (e.g.
 // pass a nil AudioFrameHandler for a video-only consumer). Non-media frames —
-// JSON control/stream-state notifications, keepalive pongs, no-ops — are ignored.
+// JSON control/stream-state notifications, keepalive pongs, no-ops — are ignored,
+// except that inbound device-settings messages are delivered to the handler set
+// via SetDeviceStateHandler (if any), so a UI can reflect the live device state.
 //
 // Cancelling ctx is the normal way to stop; StartLiveView then returns nil and
 // the caller closes the transport to end the stream (which is also how the app
@@ -91,8 +93,15 @@ func (s *APSession) StartLiveView(ctx context.Context, video VideoFrameHandler, 
 				}
 			}
 		default:
-			// Control/keepalive/stream-state notifications during streaming —
-			// nothing to dispatch.
+			// Surface the camera's own settings/status messages (502-wrapped
+			// device messages) to a registered observer, so a UI can reflect the
+			// live device state. Other control/keepalive frames have nothing to
+			// dispatch.
+			if s.onDeviceState != nil && f.Type == domain.FrameTypeJSON {
+				if st, ok := domain.ParseDeviceMessage(f.Payload); ok {
+					s.onDeviceState(st)
+				}
+			}
 			//
 			// Outbound keepalive is deliberately NOT implemented yet: doc §12.3
 			// step 9 describes a writer-idle ping plus a tag-101 pong response,

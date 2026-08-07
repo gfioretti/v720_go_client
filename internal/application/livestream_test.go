@@ -141,6 +141,41 @@ func assertStreamStartOnly(t *testing.T, ft *fakeTransport) {
 	}
 }
 
+func TestStartLiveView_DispatchesDeviceState(t *testing.T) {
+	ft := newFakeTransport()
+	s := NewAPSession(ft, testDevID, testPassword)
+
+	var got []domain.DeviceState
+	s.SetDeviceStateHandler(func(st domain.DeviceState) { got = append(got, st) })
+
+	// A 502-wrapped device-info message (surfaced), a stream-state notification
+	// (ignored), then a video frame that lets the sink stop the loop.
+	ft.push(domain.Frame{Type: domain.FrameTypeJSON, Payload: []byte(`{"code":502,"content":{"code":4,"speedGrade":2,"IrLed":1}}`)})
+	ft.push(domain.Frame{Type: domain.FrameTypeJSON, Payload: []byte(`{"code":502,"content":{"code":3}}`)})
+	ft.push(domain.Frame{Type: domain.FrameTypeMJPEG, Payload: mjpegImage("x")})
+
+	sink := newRecordingSink(1)
+	ctx, cancel := context.WithCancel(context.Background())
+	errCh := make(chan error, 1)
+	go func() { errCh <- s.StartLiveView(ctx, sink, nil) }()
+	select {
+	case <-sink.done:
+	case <-time.After(time.Second):
+		t.Fatal("never received the video frame")
+	}
+	cancel()
+	if err := <-errCh; err != nil {
+		t.Fatalf("StartLiveView = %v", err)
+	}
+
+	if len(got) != 1 {
+		t.Fatalf("device-state handler called %d times, want 1 (stream-state must not count)", len(got))
+	}
+	if got[0].SpeedGrade == nil || *got[0].SpeedGrade != 2 || got[0].IrLed == nil || *got[0].IrLed != 1 {
+		t.Errorf("device state = %+v, want speedGrade 2 / IrLed 1", got[0])
+	}
+}
+
 func TestStartLiveView_NilHandlersDropMedia(t *testing.T) {
 	ft := newFakeTransport()
 	s := NewAPSession(ft, testDevID, testPassword)
