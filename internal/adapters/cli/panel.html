@@ -25,6 +25,8 @@
   button:hover { background: #2b3140; }
   button:active { transform: translateY(1px); }
   button.on { background: #2f6df6; border-color: #2f6df6; color: #fff; }
+  button.rec { background: #b4322e; border-color: #b4322e; color: #fff; }
+  button.rec::before { content: "● "; }
   #toast {
     position: fixed; bottom: 1rem; left: 50%; transform: translateX(-50%);
     background: #232833; border: 1px solid #333a47; border-radius: 8px;
@@ -65,6 +67,7 @@
   <div class="group">
     <button id="switchcam" data-set="camera" data-value="1">Switch camera</button>
     <button id="snap">Snapshot</button>
+    <button id="record">Record</button>
   </div>
 </div>
 
@@ -121,6 +124,40 @@
     document.body.appendChild(a); a.click(); a.remove();
     flash("snapshot saved");
   });
+
+  // Record toggles server-side capture to an MP4 (video + audio).
+  const recBtn = document.getElementById("record");
+  let recording = false;
+  async function record(action) {
+    const res = await fetch("/record?action=" + action, { method: "POST" });
+    if (!res.ok) { flash("record: " + (await res.text()).trim(), true); return null; }
+    return res.json();
+  }
+  recBtn.addEventListener("click", async () => {
+    recBtn.disabled = true;
+    try {
+      if (!recording) {
+        const r = await record("start");
+        if (!r) return;
+        recording = true;
+        recBtn.textContent = "Stop"; recBtn.classList.add("rec");
+        flash("recording → " + r.file);
+      } else {
+        flash("saving…");
+        const r = await record("stop");
+        recording = false;
+        recBtn.textContent = "Record"; recBtn.classList.remove("rec");
+        if (r) flash("saved " + r.file + " (" + r.frames + " frames, " + r.seconds + "s)");
+      }
+    } finally {
+      recBtn.disabled = false;
+    }
+  });
+
+  // Reflect an already-running recording (e.g. after a page refresh).
+  fetch("/record").then(r => r.json()).then(s => {
+    if (s.recording) { recording = true; recBtn.textContent = "Stop"; recBtn.classList.add("rec"); }
+  }).catch(() => {});
 
   // If the stream stalls (camera hiccup), nudge the <img> to reconnect.
   const view = document.getElementById("view");

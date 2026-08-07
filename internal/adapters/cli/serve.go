@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"v720_go_client/internal/application"
+	"v720_go_client/internal/domain"
 )
 
 //go:embed panel.html
@@ -72,12 +73,13 @@ func (a *App) runAPServe(ctx context.Context, args []string) int {
 
 	srv := newMJPEGServer()
 	srv.session = session // enables the control panel's device commands
+	srv.mux = a.Mux       // enables browser-triggered MP4 recording
 	httpSrv := &http.Server{Handler: srv.routes()}
 
 	// The stream feeds the broadcaster; the HTTP server fans it out to browsers.
 	// Either finishing (camera drop, or Ctrl-C cancelling ctx) tears down both.
 	streamErr := make(chan error, 1)
-	go func() { streamErr <- session.StartLiveView(ctx, srv, nil) }()
+	go func() { streamErr <- session.StartLiveView(ctx, srv, srv) }()
 
 	serveErr := make(chan error, 1)
 	go func() { serveErr <- httpSrv.Serve(ln) }()
@@ -134,6 +136,11 @@ type mjpegServer struct {
 	// camera's TCP connection at a time (the live read loop reads concurrently,
 	// which is safe; concurrent writers are not).
 	sendMu sync.Mutex
+
+	// mux finalises a browser-triggered recording into an MP4 (set from App.Mux);
+	// rec holds the in-progress capture. Both nil/zero in stream-only tests.
+	mux Muxer
+	rec recorder
 }
 
 func newMJPEGServer() *mjpegServer {
@@ -160,6 +167,15 @@ func (s *mjpegServer) OnVideoFrame(jpeg []byte) error {
 		default:
 		}
 	}
+	// Tee into an in-progress recording, if any.
+	s.rec.onVideo(jpeg)
+	return nil
+}
+
+// OnAudioFrame feeds audio into an in-progress recording (browsers get
+// video-only). Audio is otherwise unused by the live panel.
+func (s *mjpegServer) OnAudioFrame(codec domain.FrameType, data []byte) error {
+	s.rec.onAudio(codec, data)
 	return nil
 }
 
@@ -189,6 +205,7 @@ func (s *mjpegServer) routes() http.Handler {
 	mux.HandleFunc("/stream.mjpg", s.handleStream)
 	mux.HandleFunc("/snapshot.jpg", s.handleSnapshot)
 	mux.HandleFunc("/control", s.handleControl)
+	mux.HandleFunc("/record", s.handleRecord)
 	return mux
 }
 
