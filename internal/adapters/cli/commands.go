@@ -92,8 +92,8 @@ Commands:
                --audio-out saves the G.711 audio as a playable .wav.
   ap preview   Connect, then open a live video window by piping the stream into a player
                (default: ffplay -f mjpeg -i -). Override the player with --player.
-  ap serve     Connect, then serve the live view over HTTP (default :8080) as an MJPEG
-               stream — open the printed URL in any browser to watch it like a webcam.
+  ap serve     Connect, then serve a browser control panel over HTTP (default :8080): live
+               MJPEG video plus buttons for HD/SD, IR, LED, motion alert, camera and snapshot.
   ap record    Connect, then record live view to a single MP4 with synced audio
                (H.264 + AAC via ffmpeg). Stops at --duration or on Ctrl-C.
   ap set       Connect, then send one device-control command (settings: camera, ir, motion-alert, move-grade, quality, white-led).

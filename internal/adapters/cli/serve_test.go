@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"sync"
 	"testing"
@@ -45,6 +46,91 @@ func freePort(t *testing.T) string {
 	addr := l.Addr().String()
 	_ = l.Close()
 	return addr
+}
+
+// /control without a session (stream-only server) reports it is unavailable, and
+// rejects bad input, without panicking.
+func TestMJPEGServer_ControlValidation(t *testing.T) {
+	ts := httptest.NewServer(newMJPEGServer().routes()) // no session
+	defer ts.Close()
+
+	// No session -> 503.
+	resp, _ := http.PostForm(ts.URL+"/control", url.Values{"set": {"quality"}, "value": {"2"}})
+	if resp.StatusCode != http.StatusServiceUnavailable {
+		t.Fatalf("no-session status = %d, want 503", resp.StatusCode)
+	}
+	resp.Body.Close()
+
+	// Wrong method -> 405.
+	resp2, _ := http.Get(ts.URL + "/control")
+	if resp2.StatusCode != http.StatusMethodNotAllowed {
+		t.Fatalf("GET /control status = %d, want 405", resp2.StatusCode)
+	}
+	resp2.Body.Close()
+}
+
+// The viewer page must embed and reference the stream.
+func TestMJPEGServer_PanelReferencesStream(t *testing.T) {
+	ts := httptest.NewServer(newMJPEGServer().routes())
+	defer ts.Close()
+	resp, err := http.Get(ts.URL + "/")
+	if err != nil {
+		t.Fatalf("GET /: %v", err)
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+	if !strings.Contains(string(body), `src="/stream.mjpg"`) {
+		t.Errorf("panel missing the stream image")
+	}
+	if !strings.Contains(string(body), `data-set="quality"`) {
+		t.Errorf("panel missing the quality control")
+	}
+}
+
+// End-to-end: a POST to /control on the real `ap serve` command reaches the
+// camera as the corresponding device command.
+func TestRun_ServeControlReachesCamera(t *testing.T) {
+	const devID = "dev123"
+	camAddr, received := startMockCameraCapturingAll(t, devID)
+	httpAddr := freePort(t)
+
+	app := NewApp(&syncBuffer{}, &syncBuffer{})
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	done := make(chan int, 1)
+	go func() {
+		done <- app.Run(ctx, []string{
+			"ap", "serve", "--addr", camAddr, "--dev", devID,
+			"--connect-timeout", "2s", "--http", httpAddr,
+		})
+	}()
+
+	// Wait for the panel to come up.
+	base := "http://" + httpAddr
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		if resp, err := http.Get(base + "/"); err == nil {
+			_ = resp.Body.Close()
+			break
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+
+	resp, err := http.PostForm(base+"/control", url.Values{"set": {"quality"}, "value": {"2"}})
+	if err != nil {
+		t.Fatalf("POST /control: %v", err)
+	}
+	if resp.StatusCode != http.StatusNoContent {
+		t.Fatalf("/control status = %d, want 204", resp.StatusCode)
+	}
+	resp.Body.Close()
+
+	if !waitForQualityCommand(t, received, 201, 2) {
+		t.Fatal("camera never received the 502/201 speedGrade=2 command from /control")
+	}
+
+	cancel()
+	<-done
 }
 
 // End-to-end: the real `ap serve` command connects to a (mock) camera, and a
