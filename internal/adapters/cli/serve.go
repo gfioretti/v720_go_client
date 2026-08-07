@@ -2,15 +2,22 @@ package cli
 
 import (
 	"context"
+	_ "embed"
 	"errors"
 	"flag"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
+	"strconv"
 	"sync"
 	"time"
+
+	"v720_go_client/internal/application"
 )
+
+//go:embed panel.html
+var panelHTML string
 
 // runAPServe connects to the camera and serves its live view over HTTP as an
 // MJPEG stream, so any browser on the machine can watch it like an IP webcam:
@@ -64,6 +71,7 @@ func (a *App) runAPServe(ctx context.Context, args []string) int {
 	}
 
 	srv := newMJPEGServer()
+	srv.session = session // enables the control panel's device commands
 	httpSrv := &http.Server{Handler: srv.routes()}
 
 	// The stream feeds the broadcaster; the HTTP server fans it out to browsers.
@@ -74,7 +82,7 @@ func (a *App) runAPServe(ctx context.Context, args []string) int {
 	serveErr := make(chan error, 1)
 	go func() { serveErr <- httpSrv.Serve(ln) }()
 
-	a.outf("live view at http://localhost%s  (open it in your browser; Ctrl-C to stop)\n", displayPort(ln.Addr(), *httpAddr))
+	a.outf("control panel at http://localhost%s  (open it in your browser; Ctrl-C to stop)\n", displayPort(ln.Addr(), *httpAddr))
 
 	var rc int
 	select {
@@ -112,10 +120,20 @@ const mjpegBoundary = "v720frame"
 // mjpegServer fans out live JPEG frames to any number of connected HTTP clients
 // and remembers the most recent frame for single-shot snapshots. It implements
 // application.VideoFrameHandler via OnVideoFrame.
+//
+// When session is set, it also serves the control panel: HTTP requests to
+// /control are turned into device commands on that session. session may be nil
+// (e.g. in stream-only tests), in which case /control reports it is unavailable.
 type mjpegServer struct {
 	mu      sync.Mutex
 	clients map[chan []byte]struct{}
 	latest  []byte
+
+	session *application.APSession
+	// sendMu serialises control commands so only one goroutine writes to the
+	// camera's TCP connection at a time (the live read loop reads concurrently,
+	// which is safe; concurrent writers are not).
+	sendMu sync.Mutex
 }
 
 func newMJPEGServer() *mjpegServer {
@@ -170,20 +188,9 @@ func (s *mjpegServer) routes() http.Handler {
 	mux.HandleFunc("/", s.handleIndex)
 	mux.HandleFunc("/stream.mjpg", s.handleStream)
 	mux.HandleFunc("/snapshot.jpg", s.handleSnapshot)
+	mux.HandleFunc("/control", s.handleControl)
 	return mux
 }
-
-const indexHTML = `<!doctype html>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>V720 live</title>
-<style>
-  html,body{margin:0;height:100%;background:#111;color:#ccc;font-family:system-ui,sans-serif}
-  body{display:grid;place-items:center}
-  img{max-width:100vw;max-height:100vh;object-fit:contain}
-</style>
-<img src="/stream.mjpg" alt="live camera view">
-`
 
 func (s *mjpegServer) handleIndex(w http.ResponseWriter, r *http.Request) {
 	if r.URL.Path != "/" {
@@ -191,7 +198,44 @@ func (s *mjpegServer) handleIndex(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_, _ = io.WriteString(w, indexHTML)
+	_, _ = io.WriteString(w, panelHTML)
+}
+
+// handleControl turns a POST like `set=quality&value=2` into a device command on
+// the session (reusing the same deviceSettings map the `ap set` command uses).
+// Commands are serialised so concurrent panel clicks can't interleave writes to
+// the camera.
+func (s *mjpegServer) handleControl(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "POST only", http.StatusMethodNotAllowed)
+		return
+	}
+	if s.session == nil {
+		http.Error(w, "control unavailable", http.StatusServiceUnavailable)
+		return
+	}
+	setting := r.FormValue("set")
+	build, ok := deviceSettings[setting]
+	if !ok {
+		http.Error(w, "unknown setting "+setting, http.StatusBadRequest)
+		return
+	}
+	value, err := strconv.Atoi(r.FormValue("value"))
+	if err != nil {
+		http.Error(w, "value must be an integer", http.StatusBadRequest)
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), sendCommandTimeout)
+	defer cancel()
+	s.sendMu.Lock()
+	err = s.session.SendCommand(ctx, build(value))
+	s.sendMu.Unlock()
+	if err != nil {
+		http.Error(w, "send failed: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (s *mjpegServer) handleSnapshot(w http.ResponseWriter, r *http.Request) {
