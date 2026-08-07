@@ -26,6 +26,7 @@ func (a *App) runAPRecord(ctx context.Context, args []string) int {
 	out := fs.String("out", "", "output .mp4 file (required)")
 	connectTimeout := fs.Duration("connect-timeout", 10*time.Second, "handshake timeout")
 	duration := fs.Duration("duration", 0, "how long to record (0 = until interrupted)")
+	quality := fs.Int("quality", 0, "video grade to request before recording: 1=SD, 2=HD (0=leave as-is)")
 	keepTemp := fs.Bool("keep-temp", false, "keep the intermediate .mjpeg/.wav files for debugging")
 	debug := fs.Bool("debug", false, "log every frame sent/received to stderr")
 	if err := fs.Parse(args); err != nil {
@@ -78,6 +79,11 @@ func (a *App) runAPRecord(ctx context.Context, args []string) int {
 		return 1
 	}
 	defer func() { _ = transport.Close() }()
+
+	if err := a.applyVideoQuality(ctx, session, *quality); err != nil {
+		a.errf("v720ctl: set quality: %v\n", err)
+		return 1
+	}
 
 	streamCtx := ctx
 	if *duration > 0 {

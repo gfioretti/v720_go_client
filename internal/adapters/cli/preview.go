@@ -39,6 +39,7 @@ func (a *App) runAPPreview(ctx context.Context, args []string) int {
 	password := fs.String("password", "", "device password (the sk value)")
 	connectTimeout := fs.Duration("connect-timeout", 10*time.Second, "handshake timeout")
 	duration := fs.Duration("duration", 0, "how long to preview (0 = until the player is closed)")
+	quality := fs.Int("quality", 0, "video grade to request first: 1=SD, 2=HD (0=leave as-is)")
 	player := fs.String("player", strings.Join(defaultPlayerCommand, " "),
 		"player command; the MJPEG stream is written to its stdin")
 	debug := fs.Bool("debug", false, "log every frame sent/received to stderr")
@@ -83,6 +84,13 @@ func (a *App) runAPPreview(ctx context.Context, args []string) int {
 		return 1
 	}
 	defer func() { _ = transport.Close() }()
+
+	if err := a.applyVideoQuality(ctx, session, *quality); err != nil {
+		_ = stdin.Close()
+		_ = wait()
+		a.errf("v720ctl: set quality: %v\n", err)
+		return 1
+	}
 
 	streamCtx := ctx
 	if *duration > 0 {
