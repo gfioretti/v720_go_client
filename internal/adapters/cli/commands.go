@@ -27,20 +27,35 @@ type Dialer func(ctx context.Context, addr string) (application.Transport, error
 // while tests inject a fake that captures the streamed bytes.
 type PlayerLauncher func(ctx context.Context, command []string) (stdin io.WriteCloser, wait func() error, err error)
 
-// App holds the CLI's I/O sinks, its transport dialer, and its media-player
-// launcher. Construct it with NewApp for the real wiring.
+// MuxRequest describes a video+audio muxing job for a Muxer.
+type MuxRequest struct {
+	VideoPath string  // captured MJPEG file (concatenated JPEGs)
+	AudioPath string  // captured WAV file; empty when no audio was recorded
+	OutPath   string  // destination .mp4
+	FPS       float64 // measured video frame rate, so the tracks stay aligned
+}
+
+// Muxer combines the captured MJPEG video and WAV audio into a single MP4. It is
+// a seam: the real App shells out to ffmpeg, while tests inject a fake that
+// records the request without spawning anything.
+type Muxer func(ctx context.Context, req MuxRequest) error
+
+// App holds the CLI's I/O sinks, its transport dialer, its media-player
+// launcher, and its muxer. Construct it with NewApp for the real wiring.
 type App struct {
 	Stdout io.Writer
 	Stderr io.Writer
 	Dial   Dialer
 	Player PlayerLauncher
+	Mux    Muxer
 }
 
-// NewApp returns an App wired to the real AP-mode TCP transport and a real
-// process-spawning media-player launcher.
+// NewApp returns an App wired to the real AP-mode TCP transport, a real
+// process-spawning media-player launcher, and a real ffmpeg-based muxer.
 func NewApp(stdout, stderr io.Writer) *App {
 	a := &App{Stdout: stdout, Stderr: stderr, Dial: dialAPTCP}
 	a.Player = a.launchPlayer
+	a.Mux = a.ffmpegMux
 	return a
 }
 
@@ -65,6 +80,7 @@ Usage:
   v720ctl ap live    --addr <host:port> --dev <devId> [--password <pwd>] [--mjpeg -|<file>] [--out <dir>] [--audio-out <file.wav>] [--duration <dur>]
   v720ctl ap preview --addr <host:port> --dev <devId> [--password <pwd>] [--player <cmd>] [--duration <dur>]
   v720ctl ap serve   --addr <host:port> --dev <devId> [--password <pwd>] [--http :8080]
+  v720ctl ap record  --addr <host:port> --dev <devId> [--password <pwd>] --out <file.mp4> [--duration <dur>]
   v720ctl ap set --addr <host:port> --dev <devId> [--password <pwd>] <setting> <value>
   v720ctl ap sd-list --addr <host:port> --dev <devId> [--password <pwd>]
 
@@ -77,6 +93,8 @@ Commands:
                (default: ffplay -f mjpeg -i -). Override the player with --player.
   ap serve     Connect, then serve the live view over HTTP (default :8080) as an MJPEG
                stream — open the printed URL in any browser to watch it like a webcam.
+  ap record    Connect, then record live view to a single MP4 with synced audio
+               (H.264 + AAC via ffmpeg). Stops at --duration or on Ctrl-C.
   ap set       Connect, then send one device-control command (settings: camera, ir, motion-alert, move-grade, quality, white-led).
   ap sd-list   Connect, then list the SD-card recording catalogue (dates → hours → minutes).
 `
@@ -102,7 +120,7 @@ func (a *App) Run(ctx context.Context, args []string) int {
 
 func (a *App) runAP(ctx context.Context, args []string) int {
 	if len(args) == 0 {
-		a.errf("v720ctl ap: expected a subcommand (connect, live, preview, serve, set, sd-list)\n\n%s", usage)
+		a.errf("v720ctl ap: expected a subcommand (connect, live, preview, serve, record, set, sd-list)\n\n%s", usage)
 		return 2
 	}
 	switch args[0] {
@@ -114,6 +132,8 @@ func (a *App) runAP(ctx context.Context, args []string) int {
 		return a.runAPPreview(ctx, args[1:])
 	case "serve":
 		return a.runAPServe(ctx, args[1:])
+	case "record":
+		return a.runAPRecord(ctx, args[1:])
 	case "set":
 		return a.runAPSet(ctx, args[1:])
 	case "sd-list":
