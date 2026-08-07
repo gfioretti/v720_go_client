@@ -14,6 +14,7 @@ import (
 
 	"v720_go_client/internal/adapters/transport/aptcp"
 	"v720_go_client/internal/application"
+	"v720_go_client/internal/domain"
 )
 
 // Dialer opens a Transport to the given address. It is a seam: the real App uses
@@ -80,7 +81,7 @@ Usage:
   v720ctl ap live    --addr <host:port> --dev <devId> [--password <pwd>] [--mjpeg -|<file>] [--out <dir>] [--audio-out <file.wav>] [--duration <dur>]
   v720ctl ap preview --addr <host:port> --dev <devId> [--password <pwd>] [--player <cmd>] [--duration <dur>]
   v720ctl ap serve   --addr <host:port> --dev <devId> [--password <pwd>] [--http :8080]
-  v720ctl ap record  --addr <host:port> --dev <devId> [--password <pwd>] --out <file.mp4> [--duration <dur>]
+  v720ctl ap record  --addr <host:port> --dev <devId> [--password <pwd>] --out <file.mp4> [--duration <dur>] [--quality 1|2]
   v720ctl ap set --addr <host:port> --dev <devId> [--password <pwd>] <setting> <value>
   v720ctl ap sd-list --addr <host:port> --dev <devId> [--password <pwd>]
 
@@ -162,6 +163,19 @@ func (a *App) dialAndConnect(ctx context.Context, addr, dev, password string, de
 		return nil, nil, fmt.Errorf("handshake failed: %w", err)
 	}
 	return session, transport, nil
+}
+
+// applyVideoQuality sends the video quality / HD grade command (doc §12.5 code
+// 201) when quality > 0, so a streaming command can request HD within the same
+// session before the stream starts. Grade 1 = SD/smooth, 2 = HD (the app's own
+// values). quality <= 0 is a no-op (leave the camera's current grade untouched).
+func (a *App) applyVideoQuality(ctx context.Context, session *application.APSession, quality int) error {
+	if quality <= 0 {
+		return nil
+	}
+	c, cancel := context.WithTimeout(ctx, sendCommandTimeout)
+	defer cancel()
+	return session.SendCommand(c, domain.NewVideoQuality(quality))
 }
 
 func (a *App) runAPConnect(ctx context.Context, args []string) int {

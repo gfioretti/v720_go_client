@@ -23,6 +23,7 @@ func (a *App) runAPServe(ctx context.Context, args []string) int {
 	dev := fs.String("dev", "", "device id / target (required)")
 	password := fs.String("password", "", "device password (the sk value)")
 	httpAddr := fs.String("http", ":8080", "address to serve the live view on")
+	quality := fs.Int("quality", 0, "video grade to request first: 1=SD, 2=HD (0=leave as-is)")
 	connectTimeout := fs.Duration("connect-timeout", 10*time.Second, "handshake timeout")
 	debug := fs.Bool("debug", false, "log every frame sent/received to stderr")
 	if err := fs.Parse(args); err != nil {
@@ -56,6 +57,11 @@ func (a *App) runAPServe(ctx context.Context, args []string) int {
 		return 1
 	}
 	defer func() { _ = transport.Close() }()
+
+	if err := a.applyVideoQuality(ctx, session, *quality); err != nil {
+		a.errf("v720ctl: set quality: %v\n", err)
+		return 1
+	}
 
 	srv := newMJPEGServer()
 	httpSrv := &http.Server{Handler: srv.routes()}

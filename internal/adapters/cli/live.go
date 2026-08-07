@@ -25,6 +25,7 @@ func (a *App) runAPLive(ctx context.Context, args []string) int {
 	password := fs.String("password", "", "device password (the sk value)")
 	connectTimeout := fs.Duration("connect-timeout", 10*time.Second, "handshake timeout")
 	duration := fs.Duration("duration", 0, "how long to stream (0 = until interrupted)")
+	quality := fs.Int("quality", 0, "video grade to request first: 1=SD, 2=HD (0=leave as-is)")
 	outDir := fs.String("out", "", "directory to write MJPEG frames as .jpg (empty = don't)")
 	audioOut := fs.String("audio-out", "", "write decoded G.711 audio to this .wav file (8 kHz mono PCM16)")
 	mjpeg := fs.String("mjpeg", "", "write a raw MJPEG stream here for live viewing; '-' = stdout\n"+
@@ -70,6 +71,11 @@ func (a *App) runAPLive(ctx context.Context, args []string) int {
 		return 1
 	}
 	defer func() { _ = transport.Close() }()
+
+	if err := a.applyVideoQuality(ctx, session, *quality); err != nil {
+		a.errf("v720ctl: set quality: %v\n", err)
+		return 1
+	}
 
 	streamCtx := ctx
 	if *duration > 0 {
