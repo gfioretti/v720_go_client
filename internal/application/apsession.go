@@ -36,6 +36,21 @@ type APSession struct {
 	// now supplies the current time for the unixTimer fields; overridable in
 	// tests for deterministic timestamps. Defaults to time.Now.
 	now func() time.Time
+
+	// onDeviceState, if set, receives the camera's inbound device-settings
+	// messages during StartLiveView. Registered once before StartLiveView via
+	// SetDeviceStateHandler and read only from that single read loop, so it needs
+	// no synchronisation here; an implementation that shares state elsewhere is
+	// responsible for its own locking.
+	onDeviceState func(domain.DeviceState)
+}
+
+// SetDeviceStateHandler registers a callback for the camera's inbound
+// device-settings/status messages (doc §12.3: the 502-wrapped device message the
+// device pushes after the handshake and on setting changes). Call it before
+// StartLiveView. Passing nil clears it. Mirrors the app's setDeviceMessageCallback.
+func (s *APSession) SetDeviceStateHandler(h func(domain.DeviceState)) {
+	s.onDeviceState = h
 }
 
 // NewAPSession returns an APSession that talks to the camera over transport,

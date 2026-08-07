@@ -74,6 +74,7 @@ func (a *App) runAPServe(ctx context.Context, args []string) int {
 	srv := newMJPEGServer()
 	srv.session = session // enables the control panel's device commands
 	srv.mux = a.Mux       // enables browser-triggered MP4 recording
+	session.SetDeviceStateHandler(srv.mergeState)
 	httpSrv := &http.Server{Handler: srv.routes()}
 
 	// The stream feeds the broadcaster; the HTTP server fans it out to browsers.
@@ -141,6 +142,29 @@ type mjpegServer struct {
 	// rec holds the in-progress capture. Both nil/zero in stream-only tests.
 	mux Muxer
 	rec recorder
+
+	// state accumulates the camera's reported settings (from device messages) so
+	// the panel can reflect the live HD/IR/LED/… state. Guarded by stateMu.
+	stateMu sync.Mutex
+	state   domain.DeviceState
+}
+
+// mergeState folds an inbound device message into the tracked state. It is the
+// APSession device-state handler; called from the live read loop.
+func (s *mjpegServer) mergeState(st domain.DeviceState) {
+	s.stateMu.Lock()
+	s.state.Merge(st)
+	s.stateMu.Unlock()
+}
+
+func (s *mjpegServer) currentState() domain.DeviceState {
+	s.stateMu.Lock()
+	defer s.stateMu.Unlock()
+	return s.state
+}
+
+func (s *mjpegServer) handleState(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, s.currentState())
 }
 
 func newMJPEGServer() *mjpegServer {
@@ -206,6 +230,7 @@ func (s *mjpegServer) routes() http.Handler {
 	mux.HandleFunc("/snapshot.jpg", s.handleSnapshot)
 	mux.HandleFunc("/control", s.handleControl)
 	mux.HandleFunc("/record", s.handleRecord)
+	mux.HandleFunc("/state", s.handleState)
 	return mux
 }
 

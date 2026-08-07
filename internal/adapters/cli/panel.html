@@ -36,7 +36,7 @@
   #toast.err { border-color: #b4322e; }
 </style>
 
-<header>V720 camera <small>live control panel</small></header>
+<header>V720 camera <small id="status">live control panel</small></header>
 
 <main>
   <!-- The MJPEG stream renders straight into an <img>, like any IP camera. -->
@@ -108,8 +108,30 @@
       const group = btn.closest(".group");
       if (group) group.querySelectorAll("button[data-set='" + btn.dataset.set + "']")
         .forEach(b => b.classList.toggle("on", b === btn));
+      // Let the camera report the new setting, then reconcile the highlights.
+      setTimeout(refreshState, 600);
     });
   });
+
+  // Reflect the camera's actual reported state: highlight the button matching
+  // each setting, and show battery / Wi-Fi / firmware in the header.
+  const stateKey = { quality: "speedGrade", ir: "IrLed", "motion-alert": "moveAlert", "white-led": "ledEI" };
+  async function refreshState() {
+    let s;
+    try { s = await fetch("/state").then(r => r.json()); } catch (e) { return; }
+    for (const [set, key] of Object.entries(stateKey)) {
+      if (s[key] === undefined) continue;
+      document.querySelectorAll("button[data-set='" + set + "']")
+        .forEach(b => b.classList.toggle("on", Number(b.dataset.value) === s[key]));
+    }
+    const bits = [];
+    if (s.devPower !== undefined) bits.push("🔋 " + s.devPower + "%");
+    if (s.wifiName) bits.push(s.wifiName);
+    if (s.version) bits.push("fw " + s.version);
+    document.getElementById("status").textContent = bits.length ? bits.join("  ·  ") : "live control panel";
+  }
+  refreshState();
+  setInterval(refreshState, 5000);
 
   // Switch camera toggles between lens 0 and 1.
   const sw = document.getElementById("switchcam");
