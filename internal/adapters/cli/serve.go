@@ -153,14 +153,14 @@ func (a *App) streamAndReconnect(ctx context.Context, p serveParams, srv *mjpegS
 		if ctx.Err() != nil {
 			return // caller asked to stop — a clean shutdown, not a drop
 		}
-		a.errf("v720ctl: live view dropped (%v); reconnecting…\n", err)
+		a.errf("v720ctl: camera connection lost: %v\n", err)
 		srv.setSession(nil) // control/record report unavailable until we're back
 
 		session, transport = a.reconnect(ctx, p, srv)
 		if session == nil {
 			return // ctx cancelled while backing off
 		}
-		a.outf("reconnected; streaming resumed\n")
+		a.outf("v720ctl: reconnected to camera; streaming resumed\n")
 	}
 }
 
@@ -175,6 +175,7 @@ func (a *App) reconnect(ctx context.Context, p serveParams, srv *mjpegServer) (*
 		if ctx.Err() != nil {
 			return nil, nil
 		}
+		a.errf("v720ctl: attempting to reconnect to %s…\n", p.addr)
 		connectCtx, cancel := context.WithTimeout(ctx, p.connectTimeout)
 		session, transport, err := a.dialAndConnect(connectCtx, p.addr, p.dev, p.password, p.debug)
 		cancel()
