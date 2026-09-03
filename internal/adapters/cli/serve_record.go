@@ -125,7 +125,7 @@ func (r *recorder) finish() (recording, error) {
 //	POST /record?action=stop                   -> {"recording":false,"file":...,"frames":N,"seconds":X}
 //	GET  /record                               -> {"recording":bool}
 func (s *mjpegServer) handleRecord(w http.ResponseWriter, r *http.Request) {
-	if s.session == nil || s.mux == nil {
+	if s.getSession() == nil || s.mux == nil {
 		http.Error(w, "recording unavailable", http.StatusServiceUnavailable)
 		return
 	}

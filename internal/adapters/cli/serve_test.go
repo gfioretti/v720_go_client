@@ -288,6 +288,103 @@ func TestMJPEGServer_StreamDeliversFrames(t *testing.T) {
 	}
 }
 
+// End-to-end: when the camera drops the connection mid-stream, `ap serve` must
+// transparently reconnect and keep the panel serving frames — not exit. The mock
+// camera streams frame A, drops, then (on the client's reconnect) streams frame
+// B; the panel must end up serving frame B.
+func TestRun_ServeReconnectsAfterDrop(t *testing.T) {
+	const devID = "dev123"
+	frameA := []byte("\xff\xd8sessionA\xff\xd9")
+	frameB := []byte("\xff\xd8sessionB\xff\xd9")
+	camAddr := startMockCameraStreamingSessions(t, devID, [][]domain.Frame{
+		{{Type: domain.FrameTypeMJPEG, Payload: frameA}},
+		{{Type: domain.FrameTypeMJPEG, Payload: frameB}},
+	})
+	httpAddr := freePort(t)
+
+	app := NewApp(&syncBuffer{}, &syncBuffer{})
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	done := make(chan int, 1)
+	go func() {
+		done <- app.Run(ctx, []string{
+			"ap", "serve", "--addr", camAddr, "--dev", devID,
+			"--connect-timeout", "2s", "--http", httpAddr,
+		})
+	}()
+
+	// Poll the snapshot endpoint until it returns frame B — the frame only the
+	// SECOND camera session streams. Seeing it proves serve survived the drop and
+	// resumed streaming on a fresh connection.
+	url := "http://" + httpAddr + "/snapshot.jpg"
+	var body []byte
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		resp, err := http.Get(url)
+		if err == nil && resp.StatusCode == 200 {
+			body, _ = io.ReadAll(resp.Body)
+			_ = resp.Body.Close()
+			if string(body) == string(frameB) {
+				break
+			}
+		} else if resp != nil {
+			_ = resp.Body.Close()
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	if string(body) != string(frameB) {
+		t.Fatalf("snapshot = %q, want frame B %q (reconnect did not resume streaming)", body, frameB)
+	}
+
+	cancel()
+	select {
+	case rc := <-done:
+		if rc != 0 {
+			t.Fatalf("serve exit code = %d, want 0", rc)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("serve did not shut down after ctx cancel")
+	}
+}
+
+// startMockCameraStreamingSessions plays the device side of several SEQUENTIAL
+// connections. For each session it accepts a connection, runs the handshake, and
+// streams that session's frames; every session but the last then closes the
+// connection to simulate the camera dropping mid-stream, so the client must
+// reconnect for the next Accept to be served. The last session stays open until
+// the client hangs up.
+func startMockCameraStreamingSessions(t *testing.T, devID string, sessions [][]domain.Frame) string {
+	t.Helper()
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	t.Cleanup(func() { _ = ln.Close() })
+
+	go func() {
+		for i, media := range sessions {
+			conn, err := ln.Accept()
+			if err != nil {
+				return
+			}
+			if mockHandshake(conn, devID, 200) {
+				for _, f := range media {
+					if err := writeStreamFrame(conn, f); err != nil {
+						break
+					}
+				}
+				if i == len(sessions)-1 {
+					drain(conn) // keep the final session open
+				}
+			}
+			_ = conn.Close() // non-last: drop, prompting the client to reconnect
+		}
+	}()
+
+	return ln.Addr().String()
+}
+
 // A slow client that never reads must not block OnVideoFrame (the live loop).
 func TestMJPEGServer_SlowClientDoesNotBlockPublish(t *testing.T) {
 	srv := newMJPEGServer()
