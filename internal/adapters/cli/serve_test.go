@@ -302,7 +302,8 @@ func TestRun_ServeReconnectsAfterDrop(t *testing.T) {
 	})
 	httpAddr := freePort(t)
 
-	app := NewApp(&syncBuffer{}, &syncBuffer{})
+	out, errOut := &syncBuffer{}, &syncBuffer{}
+	app := NewApp(out, errOut)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -335,6 +336,19 @@ func TestRun_ServeReconnectsAfterDrop(t *testing.T) {
 	}
 	if string(body) != string(frameB) {
 		t.Fatalf("snapshot = %q, want frame B %q (reconnect did not resume streaming)", body, frameB)
+	}
+
+	// The drop and recovery must be narrated: a "connection lost" warning and an
+	// "attempting to reconnect" line on stderr, and a "streaming resumed" line on
+	// stdout once it's back.
+	if errLog := errOut.String(); !strings.Contains(errLog, "camera connection lost") {
+		t.Errorf("stderr missing connection-lost warning; got:\n%s", errLog)
+	}
+	if errLog := errOut.String(); !strings.Contains(errLog, "attempting to reconnect") {
+		t.Errorf("stderr missing reconnect-attempt log; got:\n%s", errLog)
+	}
+	if outLog := out.String(); !strings.Contains(outLog, "streaming resumed") {
+		t.Errorf("stdout missing resume log; got:\n%s", outLog)
 	}
 
 	cancel()
