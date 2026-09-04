@@ -102,11 +102,35 @@ code, then commit + merge ("auto rhythm").
 |---|---|---|
 | 1 | domain: `ConnectionMode` + relay `Code`s + `NewRelayDeviceCommand` (301 wrapper) | **merged** |
 | 2 | application: `CloudAPI` port + `Account`/`Device`/`LiveConf` value types | **merged** |
-| 3 | application: `RelayTransport` port + `RelaySession` phase-1 coordinator handshake (doc §12.2 phase 1) | in progress |
-| 4 | application: phase-2 media bring-up + fragment reassembly (doc §12.2 phase 2) | planned |
+| 3 | application: `RelayTransport` port + `RelaySession` phase-1 coordinator handshake (doc §12.2 phase 1) | **merged** |
+| 4 | application: phase-2 media bring-up + fragment reassembly (doc §12.2 phase 2) | planned — **partly blocked**, see below |
 | 5 | adapters: relay transports (TCP coordinator/storage, UDP media) composed into a `RelayTransport` | planned |
 | 6 | adapters: `naxclowapi` REST client (`CloudAPI`) — swappable; some request/response JSON shapes need pinning from jadx | planned |
 | 7 | CLI: `relay` command group wired at the composition root | planned |
+
+### Slice 4 is partly blocked on real-device behavior
+
+Phase-2 (doc §12.2 phase 2) splits into a spec-pinned part and an underspecified
+part:
+- **Spec-pinned (buildable to spec):** the candidate-probe → `ConnectionMode`
+  decision (compare the responding address to the candidates, map to
+  Direct/NAT/Forward per §5), the quality-telemetry message shapes (54/55), and
+  the keepalive (bare ping out, type-102 pong resets a timeout).
+- **Underspecified (needs a real device / capture):** the UDP frame
+  **reassembly** semantics — the doc says it is jitter-buffered by the header
+  sequence field with the flag byte (offset 6) sentinels -1/-4/-5/-6 marking
+  fragment boundaries, but the exact meaning of those sentinels is *not* pinned
+  ("-4 likely 'last fragment'"). Building a byte-exact reassembler blind would
+  turn a guess into "the spec", which the project rules forbid without a spike.
+  A plausible design to validate later: reorder payloads by sequence, then feed
+  the existing marker-based `domain.MJPEGReassembler` (JPEG SOI/EOI) — but this
+  needs confirming against real traffic. Also underspecified: the exact
+  async/timing behavior (probe retries, telemetry cadence) and how `forwardId`
+  is encoded into the header (best guess: the 8-byte opaque field, §12.8).
+
+Because the developer has no cloud/self-hosted server yet, none of phase 2 can be
+observed. Recommendation: build the spec-pinned pieces with heavy UNCONFIRMED
+flags, and defer the reassembler + async timing until a capture exists.
 
 ### Known unconfirmed items entering the build (flag in code, don't let them harden into "the spec")
 - The register third-field JSON key (`"domain"`, doc §12.8).
