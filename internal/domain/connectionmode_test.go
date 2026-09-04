@@ -1,0 +1,41 @@
+package domain
+
+import "testing"
+
+// The integer values must match the app's P2P_MODE_* constants exactly (doc §5),
+// because the media channel compares candidate addresses against them.
+func TestConnectionMode_Values(t *testing.T) {
+	tests := []struct {
+		m    ConnectionMode
+		want uint8
+	}{
+		{ModeDirect, 1},
+		{ModeNAT, 2},
+		{ModeForward, 3},
+		{ModeAP, 4},
+	}
+	for _, tt := range tests {
+		if uint8(tt.m) != tt.want {
+			t.Errorf("ConnectionMode = %d, want %d", uint8(tt.m), tt.want)
+		}
+	}
+}
+
+func TestConnectionMode_String(t *testing.T) {
+	tests := []struct {
+		m    ConnectionMode
+		want string
+	}{
+		{ModeDirect, "Direct"},
+		{ModeNAT, "NAT"},
+		{ModeForward, "Forward"},
+		{ModeAP, "AP"},
+		{ConnectionMode(0), "ConnectionMode(0)"},
+		{ConnectionMode(9), "ConnectionMode(9)"},
+	}
+	for _, tt := range tests {
+		if got := tt.m.String(); got != tt.want {
+			t.Errorf("ConnectionMode(%d).String() = %q, want %q", uint8(tt.m), got, tt.want)
+		}
+	}
+}

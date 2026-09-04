@@ -61,6 +61,39 @@ const (
 	CodeApCommand Code = 502 // out: param content (nested JSON) — live-stream state wrapper
 )
 
+// Relay-mode TCP coordinator channel (findings doc §12.2 phase 1, the
+// NaxclowServerChannel). These codes coordinate the P2P/cloud-relay handshake:
+// register against the rendezvous server, obtain forward IDs, exchange candidate
+// addresses for NAT traversal, then confirm registration. CodeTimeSync (4) is
+// shared with AP-mode (§12.2 step 9). Credential-field mapping is per §12.1a:
+// the register "uid" is the app account ID, "token" is the device pwd, "devToken"
+// (on codes 10/30/52) is tarPwd.
+const (
+	CodeRelayReqConnect       Code = 10  // out: report client candidate addresses (reqConnect, TCP variant)
+	CodeRelayDeviceCandidates Code = 13  // in:  status + devIp/devPort/devNatIp/devNatPort
+	CodeRelayReqForwardID     Code = 30  // out: request a live forward ID (reqForwardId)
+	CodeRelayForwardID        Code = 31  // in:  status + forwardId (live)
+	CodeRelayReqPlaybackID    Code = 36  // out: request an SD-card/playback forward ID (reqPlaybackId)
+	CodeRelayPlaybackID       Code = 37  // in:  status + forwardId (playback)
+	CodeRelayDeviceStatus     Code = 52  // out: complete registration (reqSendDeviceStatus)
+	CodeRelayDevicePresence   Code = 53  // in:  status 0 offline / 1 online
+	CodeRelayRegister         Code = 100 // out: register on the coordinator (reqRegister)
+	CodeRelayRegisterStatus   Code = 101 // in:  status 200 ok / 500 fail (P2P register result)
+	CodeRelayHousekeeping     Code = 298 // in:  housekeeping message relayed on fresh connection
+	CodeRelayForward          Code = 301 // both: device-command wrapper (sendForwardCommand)
+)
+
+// Relay-mode UDP media channel (findings doc §12.2 phase 2, the
+// NaxclowLiveChannel). This channel has its own code sub-namespace for candidate
+// probing and quality telemetry. Keepalive uses packet type tag 102
+// (FrameTypePongRelay), which is a FrameType, not a Code.
+const (
+	CodeMediaCandidate     Code = 21 // in:  ip/port candidate to probe
+	CodeMediaProbeOK       Code = 51 // in:  status 200 — probe succeeded
+	CodeMediaQualityReport Code = 54 // out: timerStamp — periodic quality telemetry
+	CodeMediaQualityEcho   Code = 55 // in:  timerStamp — drives RTT/loss measurement
+)
+
 // Command is a device-control value object: a JSON control message identified by
 // a Code plus its parameters. It is pure domain — JSON renders the message body
 // but performs no I/O and knows nothing of the AP-mode/relay envelope that wraps
