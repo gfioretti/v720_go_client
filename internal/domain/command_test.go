@@ -39,6 +39,24 @@ func TestCode_Values(t *testing.T) {
 		{CodeAuthorize, 500},
 		{CodeConnect, 501},
 		{CodeApCommand, 502},
+		// §12.2 phase 1 relay coordinator channel
+		{CodeRelayReqConnect, 10},
+		{CodeRelayDeviceCandidates, 13},
+		{CodeRelayReqForwardID, 30},
+		{CodeRelayForwardID, 31},
+		{CodeRelayReqPlaybackID, 36},
+		{CodeRelayPlaybackID, 37},
+		{CodeRelayDeviceStatus, 52},
+		{CodeRelayDevicePresence, 53},
+		{CodeRelayRegister, 100},
+		{CodeRelayRegisterStatus, 101},
+		{CodeRelayHousekeeping, 298},
+		{CodeRelayForward, 301},
+		// §12.2 phase 2 relay media channel
+		{CodeMediaCandidate, 21},
+		{CodeMediaProbeOK, 51},
+		{CodeMediaQualityReport, 54},
+		{CodeMediaQualityEcho, 55},
 	}
 	for _, tt := range tests {
 		if uint16(tt.c) != tt.want {
