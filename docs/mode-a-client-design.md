@@ -106,7 +106,7 @@ code, then commit + merge ("auto rhythm").
 | 4 | application: phase-2 media bring-up + fragment reassembly (doc §12.2 phase 2) | **spec-pinned primitives merged**; async loop + reassembler deferred (see below) |
 | 5 | adapters: relay transports (TCP coordinator/storage, UDP media) composed into a `RelayTransport` | planned |
 | 6 | adapters: `naxclowapi` REST client (`CloudAPI`) — swappable; shapes pinned from jadx (see spec §5a) | **merged** (build-to-spec, unverified vs real backend) |
-| 7 | CLI: `relay` command group wired at the composition root | planned |
+| 7 | CLI: `relay connect` wired at the composition root (cloud rendezvous + phase-1 handshake; self-hostable via `--base-url`) | **merged** (phase-1 only; live streaming deferred) |
 
 ### Slice 4 is partly blocked on real-device behavior
 
