@@ -1,4 +1,4 @@
-package aptcp
+package framedtcp
 
 import (
 	"bytes"

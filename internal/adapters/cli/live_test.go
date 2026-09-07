@@ -148,7 +148,7 @@ func TestRun_ApUnknownSubcommand(t *testing.T) {
 	}
 }
 
-// End-to-end: connect + stream, counting frames, over the real aptcp adapter.
+// End-to-end: connect + stream, counting frames, over the real framedtcp adapter.
 func TestRun_LiveCountsFrames(t *testing.T) {
 	const devID = "dev123"
 	// Each video frame is a complete single-fragment JPEG so the reassembler emits

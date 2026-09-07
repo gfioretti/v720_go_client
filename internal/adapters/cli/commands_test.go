@@ -99,7 +99,7 @@ func TestRun_ConnectUnknownFlagExits2(t *testing.T) {
 	}
 }
 
-// End-to-end: the real CLI, over the real aptcp adapter, completes the AP-mode
+// End-to-end: the real CLI, over the real framedtcp adapter, completes the AP-mode
 // handshake against a mock device — exercising the whole vertical slice.
 func TestRun_ConnectHandshakeSucceeds(t *testing.T) {
 	const devID = "dev123"

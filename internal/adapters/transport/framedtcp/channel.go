@@ -1,10 +1,12 @@
-// Package aptcp is the secondary/driven adapter for AP-mode: the single TCP
-// connection (the app's NaxclowApChannel — see CLAUDE.md naming map) over which
-// everything, including live A/V, flows when the client is on the camera's own
-// Nax_* Wi-Fi hotspot. Channel implements the application.Transport port,
-// turning the raw byte stream into whole domain.Frames and back using the
-// 20-byte length-prefix header framing of doc §12.3a.
-package aptcp
+// Package framedtcp is the shared secondary/driven adapter for every TCP channel
+// in the protocol: it turns a raw TCP byte stream into whole domain.Frames and
+// back using the 20-byte length-prefix header framing that the findings doc
+// (§12.2a/§12.3a) confirms is byte-identical across all channels. It backs
+// AP-mode's single connection (the app's NaxclowApChannel) as well as
+// relay-mode's TCP coordinator and storage channels (NaxclowServerChannel /
+// NaxclowSdcardChannel — see CLAUDE.md naming map). Channel satisfies the
+// application.Transport port (and hence, structurally, application.RelayChannel).
+package framedtcp
 
 import (
 	"bufio"
@@ -24,7 +26,7 @@ import (
 // batch into few syscalls; it bounds buffering only, not correctness.
 const readBufferSize = 16 * 1024
 
-// Channel is a live AP-mode TCP transport. A background goroutine continuously
+// Channel is a live TCP frame transport. A background goroutine continuously
 // decodes inbound frames into a channel so Receive can honour context
 // deadlines/cancellation without abandoning a blocked socket read. Writes are
 // serialised by a mutex. It is safe for concurrent use.
@@ -48,7 +50,7 @@ func Dial(ctx context.Context, addr string) (*Channel, error) {
 	var d net.Dialer
 	conn, err := d.DialContext(ctx, "tcp", addr)
 	if err != nil {
-		return nil, fmt.Errorf("aptcp: dial %s: %w", addr, err)
+		return nil, fmt.Errorf("framedtcp: dial %s: %w", addr, err)
 	}
 	c := &Channel{
 		conn:       conn,
@@ -87,7 +89,7 @@ func (c *Channel) Send(ctx context.Context, f domain.Frame) error {
 		if c.isClosed() {
 			return application.ErrTransportClosed
 		}
-		return fmt.Errorf("aptcp: send: %w", err)
+		return fmt.Errorf("framedtcp: send: %w", err)
 	}
 	return nil
 }
@@ -163,7 +165,7 @@ func readFrame(r *bufio.Reader) (domain.Frame, error) {
 	// can't wrap negative on a 32-bit build and slip past the guard into a bad
 	// allocation. The bound is a small positive constant.
 	if payloadLen > uint32(domain.MaxFrameLength-domain.HeaderSize) {
-		return domain.Frame{}, fmt.Errorf("aptcp: frame payload length %d exceeds maximum", payloadLen)
+		return domain.Frame{}, fmt.Errorf("framedtcp: frame payload length %d exceeds maximum", payloadLen)
 	}
 	if payloadLen > 0 {
 		full := make([]byte, domain.HeaderSize+int(payloadLen))
@@ -194,7 +196,7 @@ func (c *Channel) finalErr() error {
 	c.errMu.Lock()
 	defer c.errMu.Unlock()
 	if c.readErr != nil {
-		return fmt.Errorf("aptcp: receive: %w", c.readErr)
+		return fmt.Errorf("framedtcp: receive: %w", c.readErr)
 	}
 	return application.ErrTransportClosed
 }
