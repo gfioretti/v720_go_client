@@ -63,6 +63,23 @@ func TestNewRelayDeviceCommand_NilInnerParams(t *testing.T) {
 	}
 }
 
+// NewMediaQualityReport emits the exact {"code":54,"timerStamp":"<millis>"} shape
+// (doc §12.2 phase 2 step 3), with timerStamp as a JSON string.
+func TestNewMediaQualityReport_JSON(t *testing.T) {
+	cmd := NewMediaQualityReport("1757200000123")
+	if cmd.Code != CodeMediaQualityReport {
+		t.Errorf("Code = %d, want %d", cmd.Code, CodeMediaQualityReport)
+	}
+	got, err := cmd.JSON()
+	if err != nil {
+		t.Fatalf("JSON() error: %v", err)
+	}
+	want := `{"code":54,"timerStamp":"1757200000123"}`
+	if string(got) != want {
+		t.Fatalf("JSON() = %s, want %s", got, want)
+	}
+}
+
 // NewRelayDeviceCommand must not mutate the caller's Params map.
 func TestNewRelayDeviceCommand_DoesNotAliasInnerParams(t *testing.T) {
 	params := map[string]any{"speedGrade": 2}

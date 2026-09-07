@@ -25,3 +25,17 @@ func NewRelayDeviceCommand(devTarget string, inner Command) Command {
 		"content": content,
 	}}
 }
+
+// NewMediaQualityReport builds the periodic quality-telemetry message the client
+// sends on the UDP media channel (findings doc §12.2 phase 2 step 3):
+//
+//	{"code":54,"timerStamp":"<millis>"}
+//
+// timerStamp is a millisecond timestamp carried as a STRING (the doc shows it
+// quoted); callers format it, e.g. strconv.FormatInt(ms, 10). The device echoes
+// it back in a {"code":55,...} message to drive its RTT/frame-loss measurement.
+func NewMediaQualityReport(timerStamp string) Command {
+	return Command{Code: CodeMediaQualityReport, Params: map[string]any{
+		"timerStamp": timerStamp,
+	}}
+}

@@ -103,7 +103,7 @@ code, then commit + merge ("auto rhythm").
 | 1 | domain: `ConnectionMode` + relay `Code`s + `NewRelayDeviceCommand` (301 wrapper) | **merged** |
 | 2 | application: `CloudAPI` port + `Account`/`Device`/`LiveConf` value types | **merged** |
 | 3 | application: `RelayTransport` port + `RelaySession` phase-1 coordinator handshake (doc §12.2 phase 1) | **merged** |
-| 4 | application: phase-2 media bring-up + fragment reassembly (doc §12.2 phase 2) | planned — **partly blocked**, see below |
+| 4 | application: phase-2 media bring-up + fragment reassembly (doc §12.2 phase 2) | **spec-pinned primitives merged**; async loop + reassembler deferred (see below) |
 | 5 | adapters: relay transports (TCP coordinator/storage, UDP media) composed into a `RelayTransport` | planned |
 | 6 | adapters: `naxclowapi` REST client (`CloudAPI`) — swappable; some request/response JSON shapes need pinning from jadx | planned |
 | 7 | CLI: `relay` command group wired at the composition root | planned |
