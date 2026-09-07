@@ -74,6 +74,17 @@ Domains relevant to DNS-based interception/self-hosting (own findings + `a9-v720
 2. `GET app/api/ApiSysDevices/getDevicesListByType` — list devices bound to the account.
 3. `POST app/api/ApiServer/watching` — validates the device password (`pwd` + `devicesCode`) before allowing a session.
 4. `GET app/api/ApiServer/getA9VideoConf` — returns a `DeviceLiveBean` containing `host`, `tcpPort`, `pwd`, `tarPwd`, `domain`.
+
+**5a. Concrete REST shapes (pinned 2026-09-07 from the jadx retrofit interface `com.naxclow.base.IHttpService` and the response beans; extends the summary above).** Base URL `https://v720.naxclow.com/`. All params are URL **query** params (not JSON bodies); auth is an `Authorization` header carrying the login token **raw, with no `Bearer ` prefix** (the app passes `Config.getToken()` verbatim). Every response is a JSON envelope `{"code":int,"message":string,"data":…}` — the whole body deserializes into the bean, and `code == 200` means success (anything else is an error; the message is under `message`, or `msg` on some endpoints).
+
+| Step | Method + path | Query params | Response `data` fields used |
+|---|---|---|---|
+| login | `POST app/api/ApiAppUser/login` | `phone`, `pwd`, `app`=`"v720"` | `token` (bearer), `userId` (= the coordinator register `uid`, §12.1a) |
+| device list | `GET app/api/ApiSysDevices/getDevicesListByType` (also sends `Host: v720.naxclow.com`) | `devicesType`=`""` (empty = all) | list of `{devicesCode, devicesName, isOnline}` (`isOnline` is a **string**; `"1"`=online assumed, exact truthy value unconfirmed) |
+| watching | `POST app/api/ApiServer/watching` | `pwd`, `devicesCode` | envelope only |
+| getA9VideoConf | `GET app/api/ApiServer/getA9VideoConf` | `devicesCode` | `DeviceDataBean`: `host`, `tcpPort`, `pwd`, `tarPwd`, `domain` — **plus** (not in the earlier summary) `managePort`, `token`, `conId`, `target`, `uid` |
+
+Implemented by the Go `naxclowapi` adapter (Mode A). **Not yet exercised against the real backend** (no account / cloud-bound camera) — build-to-spec.
 5. All device communication — control-plane and media-plane, local and cloud — funnels through a single class, `com.naxclow.rtc.NaxclowRtcEngine` (a singleton). `com.naxclow.common.sdk.NaxclowSdkUtil` is just a thin one-line-per-method facade in front of it (likely the bridge exposed to a JS/hybrid UI layer), with no protocol logic of its own.
 
 **Revised transport model** (supersedes the earlier "raw-TCP vs. WebRTC" hypothesis — the real picture, read directly from `NaxclowRtcEngine`'s constants, is a classic P2P-camera connection ladder rather than a binary split):
