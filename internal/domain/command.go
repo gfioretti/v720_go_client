@@ -144,3 +144,160 @@ func NewWhiteLED(ledEI int) Command {
 func NewSwitchCamera(camID int) Command {
 	return Command{Code: CodeSwitchCamera, Params: map[string]any{"camId": camID}}
 }
+
+// NewAPDeviceCommand wraps a device-control command (doc §12.5) in the AP-mode
+// envelope the camera actually expects:
+//
+//	{"code":502,"content":{"code":N,"devTarget":"<devTarget>",...params}}
+//
+// Verified against the decompiled source: every AP device command in OooOOO0
+// builds a flat map {"devTarget",..., "code", <param>} and hands it to
+// NaxclowApChannel.sendApCommand, which wraps it as {"code":502,"content":...}.
+// The doc's original §12.5 table omitted both the 502 wrapper and devTarget.
+//
+// The inner code and devTarget are authoritative — a stray "code"/"devTarget"
+// key in inner.Params cannot shadow them.
+func NewAPDeviceCommand(devTarget string, inner Command) Command {
+	content := make(map[string]any, len(inner.Params)+2)
+	maps.Copy(content, inner.Params)
+	content["code"] = uint16(inner.Code)
+	content["devTarget"] = devTarget
+	return Command{Code: CodeApCommand, Params: map[string]any{"content": content}}
+}
+
+// NewRelayDeviceCommand wraps a device-control command (doc §12.5) in the
+// P2P/cloud-relay envelope the coordinator channel expects:
+//
+//	{"code":301,"target":"<devTarget>","content":{"code":N,...params}}
+//
+// This is the relay analogue of AP-mode's 502 wrapper (see NewAPDeviceCommand),
+// read from the app's NaxclowServerChannel.sendForwardCommand (doc §12.2 step
+// 10). Note the structural difference from AP-mode: here "target" sits at the
+// OUTER level alongside code 301, and "content" is the bare inner command — the
+// inner map carries no devTarget of its own. (AP-mode instead pushes devTarget
+// INSIDE content.)
+//
+// The outer code and target are authoritative — stray "code"/"target" keys in
+// inner.Params cannot shadow them — and the caller's Params map is never mutated.
+func NewRelayDeviceCommand(devTarget string, inner Command) Command {
+	content := make(map[string]any, len(inner.Params)+1)
+	maps.Copy(content, inner.Params)
+	content["code"] = uint16(inner.Code)
+	return Command{Code: CodeRelayForward, Params: map[string]any{
+		"target":  devTarget,
+		"content": content,
+	}}
+}
+
+// NewMediaQualityReport builds the periodic quality-telemetry message the client
+// sends on the UDP media channel (findings doc §12.2 phase 2 step 3):
+//
+//	{"code":54,"timerStamp":"<millis>"}
+//
+// timerStamp is a millisecond timestamp carried as a STRING (the doc shows it
+// quoted); callers format it, e.g. strconv.FormatInt(ms, 10). The device echoes
+// it back in a {"code":55,...} message to drive its RTT/frame-loss measurement.
+func NewMediaQualityReport(timerStamp string) Command {
+	return Command{Code: CodeMediaQualityReport, Params: map[string]any{
+		"timerStamp": timerStamp,
+	}}
+}
+
+// SD-card / recording browse & playback command builders (findings doc §12.6).
+//
+// Unlike device-control commands (§12.5), these are NOT wrapped in the AP-mode
+// 502/content envelope: NaxclowApChannel builds each as a flat map and sends it
+// directly (sendProtoBeanWithTimeout), so the wire form is a bare type-0 JSON
+// frame {"code":N,"target":"<devId>",...}. The `target` field carries the devId
+// (the same value device-control commands put in `devTarget`). In P2P/relay mode
+// these use a forwardId instead — a session-layer concern not modelled here.
+//
+// `date` is an integer (e.g. 20260805); `hours` and `minute` are integers
+// identifying a recording within the catalogue (see the catalogue XML parser).
+
+// NewSDCardDateList requests the recording catalogue / date list (code 400).
+func NewSDCardDateList(target string) Command {
+	return Command{Code: CodeSDCardDateList, Params: map[string]any{"target": target}}
+}
+
+// NewSDCardFileList requests the file/recording list for one date (code 402).
+func NewSDCardFileList(target string, date int) Command {
+	return Command{Code: CodeSDCardFileList, Params: map[string]any{
+		"target": target,
+		"date":   date,
+	}}
+}
+
+// NewSDCardFileInfo requests info for the AVI recording at date/hours/minute
+// (code 404).
+func NewSDCardFileInfo(target string, date, hours, minute int) Command {
+	return Command{Code: CodeSDCardFileInfo, Params: recordingParams(target, date, hours, minute)}
+}
+
+// NewSDCardStartAVI starts streaming the AVI recording at date/hours/minute
+// (code 406).
+func NewSDCardStartAVI(target string, date, hours, minute int) Command {
+	return Command{Code: CodeSDCardStartAVI, Params: recordingParams(target, date, hours, minute)}
+}
+
+// NewSDCardStopAVI stops the current AVI playback stream (code 408).
+func NewSDCardStopAVI(target string) Command {
+	return Command{Code: CodeSDCardStopAVI, Params: map[string]any{"target": target}}
+}
+
+// recordingParams builds the field set shared by the per-recording commands
+// (404/406/412): target + date + hours + minute.
+func recordingParams(target string, date, hours, minute int) map[string]any {
+	return map[string]any{
+		"target": target,
+		"date":   date,
+		"hours":  hours,
+		"minute": minute,
+	}
+}
+
+// StreamState is the inner "code" carried inside a CodeApCommand (502) content
+// wrapper to control or report live-stream state (findings doc §12.3 step 8).
+//
+// These are BIDIRECTIONAL, not inbound-only as an earlier static reading claimed:
+//   - The client SENDS StreamStart to begin live view and StreamStop to end it.
+//     Confirmed against the decompiled app: OooOOO0.OooOO0o(int,String) builds
+//     {"devTarget","code":<state>} and hands it to sendApCommand (the 502
+//     wrapper); the UI calls setLiveStreamMode(devId, 3) to start streaming
+//     (ApRotateDeviceActivity/UdpDeviceActivity) and setLiveStreamMode(devId, 0)
+//     to stop (VideoPlaybackActivity). Build the outbound command with
+//     NewStreamControl.
+//   - The device also SENDS these back as notifications: inner 3 → stream started,
+//     0 → stopped, 1 → "open audio, close video", 2 → "close audio, open video".
+//
+// This is a separate namespace from the top-level JSON Code and from the
+// device-control content codes.
+type StreamState int
+
+const (
+	StreamStop                StreamState = 0 // stop the stream
+	StreamOpenAudioCloseVideo StreamState = 1 // open audio, close video
+	StreamCloseAudioOpenVideo StreamState = 2 // close audio, open video
+	StreamStart               StreamState = 3 // start the stream
+)
+
+// NewStreamControl builds the AP-mode live-stream control command the client
+// sends to start or stop streaming:
+//
+//	{"code":502,"content":{"code":<state>,"devTarget":"<devTarget>"}}
+//
+// Verified against the decompiled source (OooOOO0.OooOO0o(int,String) →
+// NaxclowApChannel.sendApCommand): pass StreamStart to begin live view — the app
+// sends exactly this in response to the device's post-handshake ready
+// notification — and StreamStop to end it. This supersedes the doc's earlier
+// "stream-state codes are inbound-only / live view auto-starts" reading, which a
+// real-camera capture disproved (the device streams nothing until it receives
+// this command).
+func NewStreamControl(devTarget string, state StreamState) Command {
+	return Command{Code: CodeApCommand, Params: map[string]any{
+		"content": map[string]any{
+			"code":      uint16(state),
+			"devTarget": devTarget,
+		},
+	}}
+}
