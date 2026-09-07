@@ -12,13 +12,13 @@ import (
 	"io"
 	"time"
 
-	"v720_go_client/internal/adapters/transport/aptcp"
+	"v720_go_client/internal/adapters/transport/framedtcp"
 	"v720_go_client/internal/application"
 	"v720_go_client/internal/domain"
 )
 
 // Dialer opens a Transport to the given address. It is a seam: the real App uses
-// the aptcp adapter, while tests inject a fake to exercise the command wiring
+// the framedtcp adapter, while tests inject a fake to exercise the command wiring
 // without a socket.
 type Dialer func(ctx context.Context, addr string) (application.Transport, error)
 
@@ -61,7 +61,7 @@ func NewApp(stdout, stderr io.Writer) *App {
 }
 
 func dialAPTCP(ctx context.Context, addr string) (application.Transport, error) {
-	c, err := aptcp.Dial(ctx, addr)
+	c, err := framedtcp.Dial(ctx, addr)
 	if err != nil {
 		return nil, err // return an untyped nil interface, not a nil *Channel
 	}
