@@ -22,6 +22,12 @@ import (
 // without a socket.
 type Dialer func(ctx context.Context, addr string) (application.Transport, error)
 
+// CloudFactory builds a CloudAPI for a REST base URL. It is a seam: the real App
+// uses the naxclowapi adapter (or, with a self-hosted --base-url, points it
+// elsewhere), while tests inject a fake to exercise the relay wiring without a
+// backend.
+type CloudFactory func(baseURL string) application.CloudAPI
+
 // PlayerLauncher starts a media-player subprocess (e.g. ffplay) and returns a
 // writer for its stdin, into which the caller streams MJPEG, plus a wait function
 // to call once stdin is closed. It is a seam: the real App spawns a process,
@@ -47,6 +53,7 @@ type App struct {
 	Stdout io.Writer
 	Stderr io.Writer
 	Dial   Dialer
+	Cloud  CloudFactory
 	Player PlayerLauncher
 	Mux    Muxer
 }
@@ -54,7 +61,7 @@ type App struct {
 // NewApp returns an App wired to the real AP-mode TCP transport, a real
 // process-spawning media-player launcher, and a real ffmpeg-based muxer.
 func NewApp(stdout, stderr io.Writer) *App {
-	a := &App{Stdout: stdout, Stderr: stderr, Dial: dialAPTCP}
+	a := &App{Stdout: stdout, Stderr: stderr, Dial: dialAPTCP, Cloud: newCloudAPI}
 	a.Player = a.launchPlayer
 	a.Mux = a.ffmpegMux
 	return a
@@ -84,6 +91,7 @@ Usage:
   v720ctl ap record  --addr <host:port> --dev <devId> [--password <pwd>] --out <file.mp4> [--duration <dur>] [--quality 1|2]
   v720ctl ap set --addr <host:port> --dev <devId> [--password <pwd>] <setting> <value>
   v720ctl ap sd-list --addr <host:port> --dev <devId> [--password <pwd>]
+  v720ctl relay connect --user <phone> --pass <pwd> --dev <devId> [--dev-pass <pwd>] [--base-url <url>] [--timeout <dur>]
 
 Commands:
   ap connect   Connect over the camera's AP-mode Wi-Fi hotspot and run the handshake.
@@ -98,6 +106,9 @@ Commands:
                (H.264 + AAC via ffmpeg). Stops at --duration or on Ctrl-C.
   ap set       Connect, then send one device-control command (settings: camera, ir, motion-alert, move-grade, quality, white-led).
   ap sd-list   Connect, then list the SD-card recording catalogue (dates → hours → minutes).
+  relay connect  Authenticate against the cloud (or a self-hosted --base-url), resolve the
+                 device, and run the relay-mode phase-1 coordinator handshake. Live A/V over
+                 the UDP media channel is not yet implemented (phase 2 deferred).
 `
 
 // Run dispatches args (excluding the program name) and returns a process exit
@@ -110,6 +121,8 @@ func (a *App) Run(ctx context.Context, args []string) int {
 	switch args[0] {
 	case "ap":
 		return a.runAP(ctx, args[1:])
+	case "relay":
+		return a.runRelay(ctx, args[1:])
 	case "help", "-h", "--help":
 		a.outf("%s", usage)
 		return 0
