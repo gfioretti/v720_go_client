@@ -59,6 +59,16 @@ const (
 	CodeAuthorize Code = 500 // out: param sk — password/authorize check
 	CodeConnect   Code = 501 // out: params target, token, unixTimer — connect/register
 	CodeApCommand Code = 502 // out: param content (nested JSON) — live-stream state wrapper
+
+	// CodeBaseInfo requests/carries the device base-info snapshot
+	// (CODE_FORWARD_DEV_BASE_INFO, a9-v720). It shares the integer 4 with
+	// CodeTimeSync — the protocol reuses code 4 for both; context (a bare
+	// time-sync reply vs a 301-wrapped device-command) disambiguates.
+	CodeBaseInfo Code = 4
+
+	// StatusOK is the "status" value the protocol uses for success on the
+	// coordinator/register acks (e.g. {"code":101,"status":200}).
+	StatusOK = 200
 )
 
 // Relay-mode TCP coordinator channel (findings doc §12.2 phase 1, the
