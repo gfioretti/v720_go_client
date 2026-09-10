@@ -16,6 +16,7 @@ func TestCode_Values(t *testing.T) {
 		{CodeVideoQuality, 201},
 		{CodeIRLed, 202},
 		{CodeSDRecordMode, 203},
+		{CodeSetWifi, 204},
 		{CodeMotionAlert, 205},
 		{CodeMoveGrade, 206},
 		{CodeWhiteLED, 220},
@@ -151,6 +152,11 @@ func TestNewAPDeviceCommand_JSON(t *testing.T) {
 			"switch camera",
 			NewSwitchCamera(0),
 			`{"code":502,"content":{"camId":0,"code":222,"devTarget":"dev123"}}`,
+		},
+		{
+			"set wifi",
+			NewSetWifi("HomeNet", "secret8"),
+			`{"code":502,"content":{"code":204,"devTarget":"dev123","p":"secret8","s":"HomeNet"}}`,
 		},
 	}
 	for _, tt := range tests {

@@ -17,17 +17,17 @@ type Code uint16
 // {"code":502,"content":{...}} vs relay's {"code":301,...}) is applied by the
 // session layer, not here.
 //
-// Only codes whose purpose the doc states outright are named. Several confirmed
-// integers are deliberately omitted until their purpose or real value is pinned
-// down: 204 (params s/p/url present but purpose unclear per §12.5), 207/211/223/
-// 224 (paramless, purpose unclear per §12.5), 299 (likely
-// disconnect/unregister — inferred, not confirmed), and the jadx-obscured
-// codes instLed/motorState/setRf433Dev/sfq plus two paramless variants, whose
-// real integers need an Android Studio lookup (doc §7.1). Do not guess these.
+// Only codes whose purpose the doc states outright are named. Several other
+// confirmed integers stay unnamed until we need them; their meanings are now
+// resolved via the a9-v720 cross-reference (doc §7.1) but pending re-verification
+// against v3.2.8: 207 sdcard-format, 208 ap-mode, 210 instLed, 211 wifi-scan,
+// 212 motorState, 216 mirrorFlip, 217 sfq, 218 sdcard-status, 219 rf433,
+// 299 reboot. Add them here as features need them.
 const (
 	CodeVideoQuality  Code = 201 // param: speedGrade (int) — video quality/HD grade
 	CodeIRLed         Code = 202 // param: IrLed (int) — IR LED on/off
 	CodeSDRecordMode  Code = 203 // param: sdMoveMode (int) — SD motion-detect recording mode
+	CodeSetWifi       Code = 204 // params: s (ssid), p (password) — join a home Wi-Fi (STA provisioning)
 	CodeMotionAlert   Code = 205 // param: moveAlert (int) — motion-detection alert toggle
 	CodeMoveGrade     Code = 206 // param: moveGrade (int) — PTZ move grade/sensitivity
 	CodeWhiteLED      Code = 220 // param: ledEI (int) — white/status LED state
@@ -143,6 +143,17 @@ func NewWhiteLED(ledEI int) Command {
 // NewSwitchCamera switches the active camera on dual-lens devices (doc §12.5 code 222).
 func NewSwitchCamera(camID int) Command {
 	return Command{Code: CodeSwitchCamera, Params: map[string]any{"camId": camID}}
+}
+
+// NewSetWifi tells the camera to join a home Wi-Fi network (STA-mode
+// provisioning): code 204 with s=ssid, p=password (doc §12.5, resolved via the
+// a9-v720 cross-reference — its set_wifi sends exactly {"code":204,"s":…,"p":…}).
+// Like every AP device command it is 502-wrapped and carries devTarget when sent
+// (NewAPDeviceCommand). After the camera accepts it, it reboots onto the target
+// network and its AP-mode connection drops — so this is fire-and-forget; do not
+// wait for a reply on the AP socket.
+func NewSetWifi(ssid, password string) Command {
+	return Command{Code: CodeSetWifi, Params: map[string]any{"s": ssid, "p": password}}
 }
 
 // NewAPDeviceCommand wraps a device-control command (doc §12.5) in the AP-mode
