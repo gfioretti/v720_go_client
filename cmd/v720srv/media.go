@@ -85,9 +85,10 @@ func (h *mediaHub) handler() http.HandlerFunc {
 // runMedia ingests the camera's UDP media: it answers the data-channel probe,
 // reassembles fragmented frames, ACKs each completed video frame, and publishes
 // the JPEG to viewers. It returns when the media server is closed or ctx is done.
-func runMedia(ctx context.Context, srv *relay.MediaServer, hub *mediaHub, logf func(string, ...any)) {
+func runMedia(ctx context.Context, srv *relay.MediaServer, hub *mediaHub, verbose bool, logf func(string, ...any)) {
 	var re domain.MediaReassembler
 	var frameIDs []uint32 // package ids accumulated for the current frame's ACK
+	var videoFrames, audioFrames uint64
 
 	for {
 		f, addr, err := srv.Receive()
@@ -101,6 +102,9 @@ func runMedia(ctx context.Context, srv *relay.MediaServer, hub *mediaHub, logf f
 		// Data-channel probe: the camera sends code 51, we answer code 50.
 		if f.Type == domain.FrameTypeJSON {
 			if isProbe(f) {
+				if verbose {
+					logf("media: probe from %s, answering", addr)
+				}
 				if reply, err := probeReply(); err == nil {
 					_ = srv.Send(reply, addr)
 				}
@@ -126,8 +130,14 @@ func runMedia(ctx context.Context, srv *relay.MediaServer, hub *mediaHub, logf f
 			hub.publish(frame.Data)
 			_ = srv.Send(domain.NewRetransmitConfirm(frameIDs), addr)
 			frameIDs = frameIDs[:0]
+			videoFrames++
+			if verbose && (videoFrames == 1 || videoFrames%30 == 0) {
+				logf("media: %d video frames (last %d bytes), %d audio frames", videoFrames, len(frame.Data), audioFrames)
+			}
+		} else {
+			// Audio frames are reassembled but not yet sinked.
+			audioFrames++
 		}
-		// Audio frames are reassembled but not yet sinked.
 	}
 }
 
