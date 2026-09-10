@@ -1,6 +1,8 @@
 # Binaries
 /bin/
+/dist/
 /v720ctl
+/v720srv
 *.exe
 *.test
 *.out
