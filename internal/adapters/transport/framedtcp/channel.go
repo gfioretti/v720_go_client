@@ -52,6 +52,13 @@ func Dial(ctx context.Context, addr string) (*Channel, error) {
 	if err != nil {
 		return nil, fmt.Errorf("framedtcp: dial %s: %w", addr, err)
 	}
+	return newChannel(conn), nil
+}
+
+// newChannel wraps an established connection (dialed or accepted) in a Channel
+// and starts its read loop. The same framed duplex transport serves both the
+// client (Dial) and server (Listener.Accept) sides.
+func newChannel(conn net.Conn) *Channel {
 	c := &Channel{
 		conn:       conn,
 		frames:     make(chan domain.Frame, 64),
@@ -59,8 +66,42 @@ func Dial(ctx context.Context, addr string) (*Channel, error) {
 		closed:     make(chan struct{}),
 	}
 	go c.readLoop()
-	return c, nil
+	return c
 }
+
+// Listener accepts inbound TCP connections and serves each as a Channel. It is
+// the server-side counterpart of Dial, used by the self-hosted server the camera
+// connects out to (findings doc §6): the camera's coordinator/session connection
+// arrives here.
+type Listener struct {
+	ln net.Listener
+}
+
+// Listen binds a TCP listener on addr (host:port, e.g. ":6123").
+func Listen(addr string) (*Listener, error) {
+	ln, err := net.Listen("tcp", addr)
+	if err != nil {
+		return nil, fmt.Errorf("framedtcp: listen %s: %w", addr, err)
+	}
+	return &Listener{ln: ln}, nil
+}
+
+// Accept blocks for the next inbound connection and returns it as a Channel that
+// is already serving frames. It returns the listener's error once closed.
+func (l *Listener) Accept() (*Channel, error) {
+	conn, err := l.ln.Accept()
+	if err != nil {
+		return nil, fmt.Errorf("framedtcp: accept: %w", err)
+	}
+	return newChannel(conn), nil
+}
+
+// Addr returns the listener's network address (useful when binding to :0).
+func (l *Listener) Addr() net.Addr { return l.ln.Addr() }
+
+// Close stops the listener; in-flight Channels are unaffected and must be closed
+// separately.
+func (l *Listener) Close() error { return l.ln.Close() }
 
 // Send encodes the frame and writes it to the socket. It honours a ctx deadline
 // (via the socket write deadline) and a ctx already cancelled on entry, and
