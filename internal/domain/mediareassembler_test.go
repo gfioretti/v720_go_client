@@ -124,6 +124,24 @@ func TestMediaReassembler_MismatchedFlagsIgnored(t *testing.T) {
 	}
 }
 
+// NewRetransmitConfirm packs received package IDs as 4-byte little-endian into a
+// type-605 frame; empty ids yield an empty payload.
+func TestNewRetransmitConfirm(t *testing.T) {
+	f := NewRetransmitConfirm([]uint32{1, 258})
+	if f.Type != FrameTypeRetransmitConfirm {
+		t.Errorf("type = %d, want 605", f.Type)
+	}
+	want := []byte{1, 0, 0, 0, 2, 1, 0, 0} // 1 and 258 (0x0102) little-endian
+	if !bytes.Equal(f.Payload, want) {
+		t.Errorf("payload = %v, want %v", f.Payload, want)
+	}
+
+	empty := NewRetransmitConfirm(nil)
+	if len(empty.Payload) != 0 || empty.Type != FrameTypeRetransmitConfirm {
+		t.Errorf("empty confirm = %+v", empty)
+	}
+}
+
 // The msg-flag constants decode as the documented signed sentinels.
 func TestMsgFlagValues(t *testing.T) {
 	tests := []struct {

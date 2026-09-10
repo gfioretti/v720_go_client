@@ -154,6 +154,11 @@ const (
 	// FrameTypeHandshakeTrigger opens the AP-mode handshake: the client sends an
 	// empty type-115 frame and the device echoes it back (doc §12.3 steps 2–4).
 	FrameTypeHandshakeTrigger FrameType = 115
+	// FrameTypeRetransmitConfirm is the server's per-frame media ACK on the UDP
+	// media path (a9-v720 P2P_UDP_CMD_RETRANSMISSION_CONFIRM): its payload is the
+	// list of received package IDs, 4 bytes little-endian each, so the camera
+	// knows which packets not to retransmit.
+	FrameTypeRetransmitConfirm FrameType = 605
 )
 
 // IsVideo reports whether the tag carries a video frame. Only MJPEG (tag 1) is

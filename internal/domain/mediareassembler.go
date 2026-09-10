@@ -1,5 +1,7 @@
 package domain
 
+import "encoding/binary"
+
 // UDP media fragment reassembly (findings doc §12.2 phase 2; resolved via
 // a9-v720's v720_sta.py). The camera's live A/V arrives as 20-byte-header UDP
 // frames whose flag byte (Frame.Flag, offset 6) is a fragment marker. A video
@@ -87,6 +89,18 @@ func (r *MediaReassembler) pushVideo(f Frame) (MediaFrame, bool) {
 		}
 	}
 	return MediaFrame{}, false
+}
+
+// NewRetransmitConfirm builds the per-frame media ACK the server sends back to
+// the camera after reassembling a video frame (a9-v720): a type-605 frame whose
+// payload lists the received package IDs, 4 bytes little-endian each. An empty
+// pkgIDs (e.g. the first frame) yields an empty payload.
+func NewRetransmitConfirm(pkgIDs []uint32) Frame {
+	payload := make([]byte, len(pkgIDs)*4)
+	for i, id := range pkgIDs {
+		binary.LittleEndian.PutUint32(payload[i*4:], id)
+	}
+	return Frame{Type: FrameTypeRetransmitConfirm, Payload: payload}
 }
 
 // trimTrailer drops the framing trailer (4-byte size + 1) from an END/FINISH
