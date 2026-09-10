@@ -29,9 +29,9 @@ Port 80 needs privilege:
 sudo ./v720srv --host <that-box's-LAN-IP>
 ```
 
-Startup logs: `REST on :80, coordinator on :6123, advertising host <ip>:6123`.
-Flags: `--http-port` (default 80), `--tcp-port` (6123), `--device-code`,
-`--target`, `--pwd` (default `deadbeef`).
+Startup logs: `REST on :80, coordinator+media on :6123, viewer on :8080/live`.
+Flags: `--http-port` (default 80), `--tcp-port` (6123, TCP coordinator + UDP
+media), `--view-port` (8080), `--device-code`, `--target`, `--pwd` (`deadbeef`).
 
 ## 3. DNS redirect (the real work)
 
@@ -62,8 +62,11 @@ On `v720srv`'s log:
 - Boot REST getting hit (the camera calling `getA9ConfCheck` etc.).
 - **The money line:** `camera registered: uid="..."; sent start-stream`
 
-That line = the whole approach validated on this firmware. (No video yet — the
-UDP media path is a separate build.)
+That line = the control plane validated on this firmware. Then open the viewer —
+**`http://<box-ip>:8080/live`** in a browser — to check if the camera actually
+streams (the media path is built: UDP ingest → reassembly → MJPEG). If it logs
+`registered` but no video appears, the media/probe path or the open-video trigger
+diverges on this firmware — that's the next thing to adapt.
 
 ## If it does NOT register — note the furthest stage reached
 
