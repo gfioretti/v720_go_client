@@ -5,17 +5,20 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
 	"sync"
 
 	"v720_go_client/internal/adapters/transport/relay"
 	"v720_go_client/internal/domain"
 )
 
-// mediaHub fans reassembled JPEG frames out to any number of HTTP viewers. A slow
-// viewer drops frames rather than stalling ingest.
+// mediaHub fans reassembled JPEG frames out to any number of HTTP viewers and
+// retains the most recent one for /snapshot. A slow viewer drops frames rather
+// than stalling ingest.
 type mediaHub struct {
-	mu   sync.Mutex
-	subs map[chan []byte]struct{}
+	mu     sync.Mutex
+	subs   map[chan []byte]struct{}
+	latest []byte
 }
 
 func newMediaHub() *mediaHub { return &mediaHub{subs: make(map[chan []byte]struct{})} }
@@ -23,12 +26,22 @@ func newMediaHub() *mediaHub { return &mediaHub{subs: make(map[chan []byte]struc
 func (h *mediaHub) publish(jpeg []byte) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
+	h.latest = jpeg
 	for ch := range h.subs {
 		select {
 		case ch <- jpeg:
 		default: // viewer is behind; drop this frame for it
 		}
 	}
+}
+
+// snapshot returns the most recent JPEG (nil if none yet). The returned slice is
+// never mutated (publish always stores a fresh reassembled frame), so it's safe
+// to hand to a handler without copying.
+func (h *mediaHub) snapshot() []byte {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return h.latest
 }
 
 func (h *mediaHub) subscribe() chan []byte {
@@ -79,6 +92,21 @@ func (h *mediaHub) handler() http.HandlerFunc {
 				}
 			}
 		}
+	}
+}
+
+// snapshotHandler serves the most recent JPEG frame as a single image — a quick
+// "is it streaming?" check. Returns 503 until the first frame arrives.
+func (h *mediaHub) snapshotHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		jpeg := h.snapshot()
+		if jpeg == nil {
+			http.Error(w, "no frame yet", http.StatusServiceUnavailable)
+			return
+		}
+		w.Header().Set("Content-Type", "image/jpeg")
+		w.Header().Set("Content-Length", strconv.Itoa(len(jpeg)))
+		_, _ = w.Write(jpeg)
 	}
 }
 

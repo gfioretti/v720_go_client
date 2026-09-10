@@ -5,6 +5,8 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"net"
+	"net/http"
+	"net/http/httptest"
 	"sync"
 	"testing"
 	"time"
@@ -147,6 +149,28 @@ func TestMediaHub_ConcurrentPubSubUnsub(t *testing.T) {
 		}()
 	}
 	wg.Wait()
+}
+
+// /snapshot returns 503 before any frame, then the latest JPEG once published.
+func TestSnapshotHandler(t *testing.T) {
+	hub := newMediaHub()
+	h := hub.snapshotHandler()
+
+	rec := httptest.NewRecorder()
+	h(rec, httptest.NewRequest(http.MethodGet, "/snapshot", nil))
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("before any frame: status = %d, want 503", rec.Code)
+	}
+
+	hub.publish([]byte("\xff\xd8jpeg\xff\xd9"))
+	rec = httptest.NewRecorder()
+	h(rec, httptest.NewRequest(http.MethodGet, "/snapshot", nil))
+	if rec.Code != 200 || rec.Header().Get("Content-Type") != "image/jpeg" {
+		t.Fatalf("after frame: status=%d type=%q", rec.Code, rec.Header().Get("Content-Type"))
+	}
+	if rec.Body.String() != "\xff\xd8jpeg\xff\xd9" {
+		t.Fatalf("snapshot body = %q", rec.Body.String())
+	}
 }
 
 // The data-channel probe: the camera's code-51 gets a code-50 reply.
