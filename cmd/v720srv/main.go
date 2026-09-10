@@ -8,6 +8,7 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
 	"flag"
 	"fmt"
 	"log"
@@ -26,6 +27,7 @@ import (
 func main() {
 	host := flag.String("host", "", "this server's LAN IP that the camera connects to (required)")
 	httpPort := flag.Int("http-port", 80, "port for the camera boot REST (naxclow uses 80; needs privilege)")
+	httpsPort := flag.Int("https-port", 443, "port for the boot REST over TLS, self-signed (0 disables)")
 	tcpPort := flag.Int("tcp-port", 6123, "port for the camera coordinator session (TCP) and media (UDP)")
 	viewPort := flag.Int("view-port", 8080, "port for the live MJPEG viewer (http://<host>:<view-port>/live)")
 	deviceCode := flag.String("device-code", "0800c0000001", "device uid reported to the camera")
@@ -56,6 +58,27 @@ func main() {
 			log.Fatalf("http server (:%d): %v", *httpPort, err)
 		}
 	}()
+
+	// Boot REST over TLS (best-effort) — in case the firmware uses HTTPS. Uses a
+	// self-signed cert the camera does not verify. A bind failure (e.g. no
+	// privilege for :443) is logged, not fatal — plain HTTP still serves.
+	var httpsSrv *http.Server
+	if *httpsPort > 0 {
+		if cert, err := selfSignedCert("v720.naxclow.com", "*.naxclow.com", *host); err != nil {
+			log.Printf("v720srv: TLS cert generation failed, HTTPS disabled: %v", err)
+		} else {
+			httpsSrv = &http.Server{
+				Addr:      fmt.Sprintf(":%d", *httpsPort),
+				Handler:   restHandler,
+				TLSConfig: &tls.Config{Certificates: []tls.Certificate{cert}},
+			}
+			go func() {
+				if err := httpsSrv.ListenAndServeTLS("", ""); err != nil && err != http.ErrServerClosed {
+					log.Printf("v720srv: HTTPS server (:%d) not running: %v", *httpsPort, err)
+				}
+			}()
+		}
+	}
 
 	// Coordinator (:6123 TCP) — the camera's session connection.
 	ln, err := framedtcp.Listen(fmt.Sprintf(":%d", *tcpPort))
@@ -90,6 +113,9 @@ func main() {
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 		defer cancel()
 		_ = httpSrv.Shutdown(shutdownCtx)
+		if httpsSrv != nil {
+			_ = httpsSrv.Shutdown(shutdownCtx)
+		}
 		// Close (not Shutdown) the viewer: its MJPEG connections are long-lived
 		// and would otherwise block Shutdown until the deadline.
 		_ = viewSrv.Close()
