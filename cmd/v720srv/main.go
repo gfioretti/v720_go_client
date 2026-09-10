@@ -75,6 +75,7 @@ func main() {
 	// Viewer HTTP — the live MJPEG stream.
 	viewMux := http.NewServeMux()
 	viewMux.HandleFunc("/live", hub.handler())
+	viewMux.HandleFunc("/snapshot", hub.snapshotHandler())
 	viewSrv := &http.Server{Addr: fmt.Sprintf(":%d", *viewPort), Handler: viewMux}
 	go func() {
 		if err := viewSrv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
@@ -94,7 +95,7 @@ func main() {
 		_ = viewSrv.Close()
 	}()
 
-	log.Printf("v720srv: REST on :%d, coordinator+media on :%d, viewer on :%d/live; advertising host %s:%d to cameras",
+	log.Printf("v720srv: REST on :%d, coordinator+media on :%d, viewer on :%d/live (+/snapshot); advertising host %s:%d to cameras",
 		*httpPort, *tcpPort, *viewPort, *host, *tcpPort)
 	log.Printf("v720srv: point the camera's naxclow DNS at %s (dnsmasq: address=/naxclow.com/%s)", *host, *host)
 
