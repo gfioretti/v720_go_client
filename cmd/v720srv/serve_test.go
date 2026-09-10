@@ -11,6 +11,11 @@ import (
 	"v720_go_client/internal/domain"
 )
 
+// discardf is a no-op logger for tests: the serveCameras/runMedia goroutines
+// outlive the test, so passing t.Logf would panic ("Log after test completed")
+// on a late log call. Production wiring uses log.Printf, which is always safe.
+func discardf(string, ...any) {}
+
 func jsonFrame(t *testing.T, m map[string]any) domain.Frame {
 	t.Helper()
 	b, err := json.Marshal(m)
@@ -42,7 +47,7 @@ func TestServeCameras_BringsUpConnectingCamera(t *testing.T) {
 	defer cancel()
 
 	registered := make(chan application.Registration, 1)
-	go serveCameras(ctx, ln, application.NewDeviceGateway("tgt"), t.Logf, func(r application.Registration) {
+	go serveCameras(ctx, ln, application.NewDeviceGateway("tgt"), discardf, func(r application.Registration) {
 		registered <- r
 	})
 
