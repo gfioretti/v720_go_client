@@ -47,7 +47,7 @@ func TestServeCameras_BringsUpConnectingCamera(t *testing.T) {
 	defer cancel()
 
 	registered := make(chan application.Registration, 1)
-	go serveCameras(ctx, ln, application.NewDeviceGateway("tgt"), discardf, func(r application.Registration) {
+	go serveCameras(ctx, ln, application.NewDeviceGateway("tgt"), false, discardf, func(r application.Registration) {
 		registered <- r
 	})
 

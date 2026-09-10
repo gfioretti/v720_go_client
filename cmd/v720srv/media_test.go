@@ -32,7 +32,7 @@ func TestRunMedia_ReassemblesPublishesAndAcks(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	go runMedia(ctx, srv, hub, discardf)
+	go runMedia(ctx, srv, hub, false, discardf)
 
 	cam, err := net.ListenPacket("udp", "127.0.0.1:0")
 	if err != nil {
@@ -85,7 +85,7 @@ func TestRunMedia_AckScopedToVideoFrame(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	go runMedia(ctx, srv, newMediaHub(), discardf)
+	go runMedia(ctx, srv, newMediaHub(), false, discardf)
 
 	cam, err := net.ListenPacket("udp", "127.0.0.1:0")
 	if err != nil {
@@ -159,7 +159,7 @@ func TestRunMedia_AnswersProbe(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	go runMedia(ctx, srv, newMediaHub(), discardf)
+	go runMedia(ctx, srv, newMediaHub(), false, discardf)
 
 	cam, err := net.ListenPacket("udp", "127.0.0.1:0")
 	if err != nil {

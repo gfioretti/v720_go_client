@@ -31,6 +31,7 @@ func main() {
 	deviceCode := flag.String("device-code", "0800c0000001", "device uid reported to the camera")
 	target := flag.String("target", application.DefaultClientTarget, "client target id used in 301 forward wrappers")
 	pwd := flag.String("pwd", "deadbeef", "device password expected by the camera")
+	verbose := flag.Bool("verbose", false, "log every camera REST call, coordinator frame, and media stats")
 	flag.Parse()
 
 	if *host == "" {
@@ -43,12 +44,13 @@ func main() {
 
 	// Boot REST (:80) — DNS-redirected naxclow calls land here; getA9ConfCheck
 	// hands the camera our host:tcpPort so it opens its coordinator session to us.
-	httpSrv := &http.Server{
-		Addr: fmt.Sprintf(":%d", *httpPort),
-		Handler: cloudhttp.Handler(cloudhttp.Config{
-			Host: *host, TCPPort: *tcpPort, DeviceCode: *deviceCode, Pwd: *pwd,
-		}),
+	var restHandler http.Handler = cloudhttp.Handler(cloudhttp.Config{
+		Host: *host, TCPPort: *tcpPort, DeviceCode: *deviceCode, Pwd: *pwd,
+	})
+	if *verbose {
+		restHandler = logRequests(restHandler, log.Printf)
 	}
+	httpSrv := &http.Server{Addr: fmt.Sprintf(":%d", *httpPort), Handler: restHandler}
 	go func() {
 		if err := httpSrv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("http server (:%d): %v", *httpPort, err)
@@ -68,7 +70,7 @@ func main() {
 		log.Fatalf("media listen: %v", err)
 	}
 	hub := newMediaHub()
-	go runMedia(ctx, mediaSrv, hub, log.Printf)
+	go runMedia(ctx, mediaSrv, hub, *verbose, log.Printf)
 
 	// Viewer HTTP — the live MJPEG stream.
 	viewMux := http.NewServeMux()
@@ -96,6 +98,6 @@ func main() {
 		*httpPort, *tcpPort, *viewPort, *host, *tcpPort)
 	log.Printf("v720srv: point the camera's naxclow DNS at %s (dnsmasq: address=/naxclow.com/%s)", *host, *host)
 
-	serveCameras(ctx, ln, application.NewDeviceGateway(*target), log.Printf, nil)
+	serveCameras(ctx, ln, application.NewDeviceGateway(*target), *verbose, log.Printf, nil)
 	log.Printf("v720srv: shut down")
 }
