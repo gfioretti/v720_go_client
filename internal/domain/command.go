@@ -99,7 +99,8 @@ const (
 // (FrameTypePongRelay), which is a FrameType, not a Code.
 const (
 	CodeMediaCandidate     Code = 21 // in:  ip/port candidate to probe
-	CodeMediaProbeOK       Code = 51 // in:  status 200 — probe succeeded
+	CodeMediaProbeReq      Code = 50 // out: data-channel probe request (server→camera, C2D_PROBE_REQ)
+	CodeMediaProbeOK       Code = 51 // in:  status 200 — probe succeeded / camera's probe response (D2C_PROBE_RSP)
 	CodeMediaQualityReport Code = 54 // out: timerStamp — periodic quality telemetry
 	CodeMediaQualityEcho   Code = 55 // in:  timerStamp — drives RTT/loss measurement
 )

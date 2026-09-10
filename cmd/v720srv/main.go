@@ -19,13 +19,15 @@ import (
 
 	"v720_go_client/internal/adapters/cloudhttp"
 	"v720_go_client/internal/adapters/transport/framedtcp"
+	"v720_go_client/internal/adapters/transport/relay"
 	"v720_go_client/internal/application"
 )
 
 func main() {
 	host := flag.String("host", "", "this server's LAN IP that the camera connects to (required)")
 	httpPort := flag.Int("http-port", 80, "port for the camera boot REST (naxclow uses 80; needs privilege)")
-	tcpPort := flag.Int("tcp-port", 6123, "port for the camera coordinator session")
+	tcpPort := flag.Int("tcp-port", 6123, "port for the camera coordinator session (TCP) and media (UDP)")
+	viewPort := flag.Int("view-port", 8080, "port for the live MJPEG viewer (http://<host>:<view-port>/live)")
 	deviceCode := flag.String("device-code", "0800c0000001", "device uid reported to the camera")
 	target := flag.String("target", application.DefaultClientTarget, "client target id used in 301 forward wrappers")
 	pwd := flag.String("pwd", "deadbeef", "device password expected by the camera")
@@ -53,22 +55,45 @@ func main() {
 		}
 	}()
 
-	// Coordinator (:6123) — the camera's session connection.
+	// Coordinator (:6123 TCP) — the camera's session connection.
 	ln, err := framedtcp.Listen(fmt.Sprintf(":%d", *tcpPort))
 	if err != nil {
 		log.Fatalf("coordinator listen: %v", err)
 	}
 
+	// Media (:6123 UDP) — the camera's live A/V; reassembled and fanned out to
+	// browser viewers.
+	mediaSrv, err := relay.ListenMedia(fmt.Sprintf(":%d", *tcpPort))
+	if err != nil {
+		log.Fatalf("media listen: %v", err)
+	}
+	hub := newMediaHub()
+	go runMedia(ctx, mediaSrv, hub, log.Printf)
+
+	// Viewer HTTP — the live MJPEG stream.
+	viewMux := http.NewServeMux()
+	viewMux.HandleFunc("/live", hub.handler())
+	viewSrv := &http.Server{Addr: fmt.Sprintf(":%d", *viewPort), Handler: viewMux}
+	go func() {
+		if err := viewSrv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("viewer server (:%d): %v", *viewPort, err)
+		}
+	}()
+
 	go func() {
 		<-ctx.Done()
 		_ = ln.Close()
+		_ = mediaSrv.Close()
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 		defer cancel()
 		_ = httpSrv.Shutdown(shutdownCtx)
+		// Close (not Shutdown) the viewer: its MJPEG connections are long-lived
+		// and would otherwise block Shutdown until the deadline.
+		_ = viewSrv.Close()
 	}()
 
-	log.Printf("v720srv: REST on :%d, coordinator on :%d, advertising host %s:%d to cameras",
-		*httpPort, *tcpPort, *host, *tcpPort)
+	log.Printf("v720srv: REST on :%d, coordinator+media on :%d, viewer on :%d/live; advertising host %s:%d to cameras",
+		*httpPort, *tcpPort, *viewPort, *host, *tcpPort)
 	log.Printf("v720srv: point the camera's naxclow DNS at %s (dnsmasq: address=/naxclow.com/%s)", *host, *host)
 
 	serveCameras(ctx, ln, application.NewDeviceGateway(*target), log.Printf, nil)
