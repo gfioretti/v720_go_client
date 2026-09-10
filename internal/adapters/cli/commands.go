@@ -92,6 +92,7 @@ Usage:
   v720ctl ap set --addr <host:port> --dev <devId> [--password <pwd>] <setting> <value>
   v720ctl ap sd-list --addr <host:port> --dev <devId> [--password <pwd>]
   v720ctl relay connect --user <phone> --pass <pwd> --dev <devId> [--dev-pass <pwd>] [--base-url <url>] [--timeout <dur>]
+  v720ctl scan [--subnet <cidr>] [--port <n>] [--timeout <dur>] [--concurrency <n>]
 
 Commands:
   ap connect   Connect over the camera's AP-mode Wi-Fi hotspot and run the handshake.
@@ -109,6 +110,9 @@ Commands:
   relay connect  Authenticate against the cloud (or a self-hosted --base-url), resolve the
                  device, and run the relay-mode phase-1 coordinator handshake. Live A/V over
                  the UDP media channel is not yet implemented (phase 2 deferred).
+  scan         Find cameras on the local network by probing a subnet for the camera port
+               (6123) and confirming the handshake. Use the reported IP with 'ap' commands
+               to reach a camera joined to the home Wi-Fi (STA mode), not just its hotspot.
 `
 
 // Run dispatches args (excluding the program name) and returns a process exit
@@ -123,6 +127,8 @@ func (a *App) Run(ctx context.Context, args []string) int {
 		return a.runAP(ctx, args[1:])
 	case "relay":
 		return a.runRelay(ctx, args[1:])
+	case "scan":
+		return a.runScan(ctx, args[1:])
 	case "help", "-h", "--help":
 		a.outf("%s", usage)
 		return 0
