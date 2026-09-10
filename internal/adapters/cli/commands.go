@@ -90,6 +90,7 @@ Usage:
   v720ctl ap serve   --addr <host:port> --dev <devId> [--password <pwd>] [--http :8080]
   v720ctl ap record  --addr <host:port> --dev <devId> [--password <pwd>] --out <file.mp4> [--duration <dur>] [--quality 1|2]
   v720ctl ap set --addr <host:port> --dev <devId> [--password <pwd>] <setting> <value>
+  v720ctl ap set-wifi --ssid <name> --pass <pwd> --dev <devId> [--addr <host:port>]
   v720ctl ap sd-list --addr <host:port> --dev <devId> [--password <pwd>]
   v720ctl relay connect --user <phone> --pass <pwd> --dev <devId> [--dev-pass <pwd>] [--base-url <url>] [--timeout <dur>]
   v720ctl scan [--subnet <cidr>] [--port <n>] [--timeout <dur>] [--concurrency <n>]
@@ -106,6 +107,8 @@ Commands:
   ap record    Connect, then record live view to a single MP4 with synced audio
                (H.264 + AAC via ffmpeg). Stops at --duration or on Ctrl-C.
   ap set       Connect, then send one device-control command (settings: camera, ir, motion-alert, move-grade, quality, white-led).
+  ap set-wifi  Over the AP hotspot, tell the camera to join a home Wi-Fi (SSID+password, code 204),
+               so it can then be reached in STA mode via 'scan' + 'ap ... --addr <lan-ip>'.
   ap sd-list   Connect, then list the SD-card recording catalogue (dates → hours → minutes).
   relay connect  Authenticate against the cloud (or a self-hosted --base-url), resolve the
                  device, and run the relay-mode phase-1 coordinator handshake. Live A/V over
@@ -140,7 +143,7 @@ func (a *App) Run(ctx context.Context, args []string) int {
 
 func (a *App) runAP(ctx context.Context, args []string) int {
 	if len(args) == 0 {
-		a.errf("v720ctl ap: expected a subcommand (connect, live, preview, serve, record, set, sd-list)\n\n%s", usage)
+		a.errf("v720ctl ap: expected a subcommand (connect, live, preview, serve, record, set, set-wifi, sd-list)\n\n%s", usage)
 		return 2
 	}
 	switch args[0] {
@@ -156,6 +159,8 @@ func (a *App) runAP(ctx context.Context, args []string) int {
 		return a.runAPRecord(ctx, args[1:])
 	case "set":
 		return a.runAPSet(ctx, args[1:])
+	case "set-wifi":
+		return a.runAPSetWifi(ctx, args[1:])
 	case "sd-list":
 		return a.runAPSDList(ctx, args[1:])
 	default:
