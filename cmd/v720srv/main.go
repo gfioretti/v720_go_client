@@ -12,6 +12,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -34,6 +35,8 @@ func main() {
 	target := flag.String("target", application.DefaultClientTarget, "client target id used in 301 forward wrappers")
 	pwd := flag.String("pwd", "deadbeef", "device password expected by the camera")
 	verbose := flag.Bool("verbose", false, "log every camera REST call, coordinator frame, and media stats")
+	dnsEnabled := flag.Bool("dns", false, "run a built-in DNS sinkhole on :53 (naxclow -> --host, forward the rest); avoids needing Pi-hole/dnsmasq")
+	dnsUpstream := flag.String("dns-upstream", "1.1.1.1:53", "upstream resolver for non-naxclow DNS queries")
 	flag.Parse()
 
 	if *host == "" {
@@ -95,6 +98,21 @@ func main() {
 	hub := newMediaHub()
 	go runMedia(ctx, mediaSrv, hub, *verbose, log.Printf)
 
+	// Optional built-in DNS sinkhole (:53) — point the network's DNS here and the
+	// camera resolves naxclow to us; everything else is forwarded.
+	var dnsConn net.PacketConn
+	if *dnsEnabled {
+		if ip := net.ParseIP(*host); ip == nil || ip.To4() == nil {
+			log.Printf("v720srv: --dns needs --host to be an IPv4 address (got %q); DNS disabled", *host)
+		} else if dnsConn, err = net.ListenPacket("udp", ":53"); err != nil {
+			log.Printf("v720srv: DNS sinkhole disabled (:53 bind failed: %v)", err)
+			dnsConn = nil
+		} else {
+			go runDNS(ctx, dnsConn, net.ParseIP(*host), *dnsUpstream, *verbose, log.Printf)
+			log.Printf("v720srv: DNS sinkhole on :53 (naxclow -> %s, forward -> %s); set this box (%s) as the network's DNS", *host, *dnsUpstream, *host)
+		}
+	}
+
 	// Viewer HTTP — the live MJPEG stream.
 	viewMux := http.NewServeMux()
 	viewMux.HandleFunc("/live", hub.handler())
@@ -110,6 +128,9 @@ func main() {
 		<-ctx.Done()
 		_ = ln.Close()
 		_ = mediaSrv.Close()
+		if dnsConn != nil {
+			_ = dnsConn.Close()
+		}
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 		defer cancel()
 		_ = httpSrv.Shutdown(shutdownCtx)
