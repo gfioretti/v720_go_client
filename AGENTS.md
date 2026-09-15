@@ -8,7 +8,7 @@ The project follows DDD + hexagonal architecture (see `CLAUDE.md`'s Architecture
 
 ## Available agents
 
-- **`go-scaffold`** — initial project/module setup: `go.mod`, the `domain`/`application`/`adapters` directory layout, base tooling config. Use once, near the start, to lay down the structure proposed in `CLAUDE.md`'s "Proposed project layout".
+- **`go-scaffold`** — initial project/module setup. **Already done** — the `domain`/`application`/`adapters` layout and both `cmd/` composition roots exist. Only relevant if a genuinely new top-level structure is ever needed; day-to-day work should follow the existing layout, not re-scaffold it.
 - **`go-feature`** — implementing a discrete piece of functionality end-to-end, spanning `domain`/`application` as needed. This is the main workhorse for turning one piece of the reverse-engineered protocol into working Go — e.g. "implement `Frame` encode/decode in `internal/domain` per findings-doc section 12.2a/12.3a", "implement `APSession`'s handshake in `internal/application` per section 12.3, against the `Transport` port", "implement the relay-mode registration + NAT-traversal handshake per section 12.2", "implement the SD-card file-listing/download use cases per section 12.6". Also the right choice for adapters that are protocol-specific rather than generic-pattern (i.e. `adapters/transport/aptcp` and `adapters/transport/relay/*` — these implement the `Transport` port against Naxclow's actual wire protocol, which isn't a generic "build an API client" task).
 - **`go-api-builder`** — HTTP API client work. Use specifically for `internal/adapters/naxclowapi` (the naxclow cloud REST client implementing the `CloudAPI` port: `login`/`register`, `getDevicesListByType`, `watching`, `getA9VideoConf` — see findings doc sections 4 and 8/Mode A) — only relevant if/when cloud-relay mode gets built. Don't use this for the `Transport` adapters above — those are custom binary protocol work, not a REST API client.
 - **`go-db-builder`** — persistence/storage layer. Likely **not needed** for the core protocol client. Only reach for this if the project grows a need to cache device configs, credentials, or session state locally — don't scaffold a DB layer preemptively, and don't let it leak into the domain layer if it does get added (a cache is a driven adapter behind its own port, same as everything else).
@@ -32,4 +32,21 @@ Per `CLAUDE.md`'s "Workflow: small steps, one branch per step, test-first" — e
 
 ## Known open items — verify, don't guess
 
-The findings doc's section 12.8 ("Remaining gaps") lists specific unresolved details as of when it was written: a handful of obscured command codes (`instLed`, `motorState`, `setRf433Dev`, `sfq`, two SD-card delete-picture codes, and one JSON field name in the relay-mode register message), a few unconfirmed byte-offsets in the `Frame` header, the exact relationship between the relay-mode TCP-phase and UDP-phase NAT candidates, and `connectDirect` (local-LAN discovery for STA-mode devices, i.e. camera already on the home WiFi rather than in its own AP hotspot) — not yet traced at all. Any of these should be resolved by checking the jadx source directly (and updating the doc) before being treated as settled — not guessed at or silently assumed correct.
+Most of the command codes the findings doc once flagged obscured were **resolved**
+via a9-v720's `cmd_udp.py` and are recorded in doc §7.1 / §12.5 — e.g. `instLed`
+(210), `motorState` (212), `sfq` (217), `mirrorFlip` (216), wifi-scan (211),
+sdcard-format (207), reboot (299), direct-motion (tag 114). `connectDirect`
+(STA-direct LAN access) was traced and **disproven**: the camera is outbound-only
+in STA mode (all inbound ports filtered), which is why `v720srv` exists.
+
+What is genuinely still open:
+- **Real-camera validation of `v720srv`** — the whole server boot flow (boot-REST
+  shapes, coordinator FSM, media probe ordering / UDP port, HTTPS-vs-HTTP) is
+  built from a9-v720's *earlier* firmware and is UNCONFIRMED until a real camera
+  registers and streams (see the `deploy-v720srv` skill / `docs/self-hosted-server-deploy.md`).
+- A few `Frame`-header byte-offsets and the exact relay-mode TCP↔UDP NAT-candidate
+  relationship remain provisional (doc §7 / §12.8).
+
+Resolve anything still open by checking the jadx source or a real capture (and
+update the findings doc) before treating it as settled — use the `protocol-lookup`
+skill for where to look.
