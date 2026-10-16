@@ -35,7 +35,10 @@ Quick grep for a section: `grep -n "^#\{1,4\} .*12\.5" docs/v720-camera-findings
 
 ## 2. jadx-decompiled Android app (v3.2.8) — when the doc is silent/unsure
 
-Path: `/Users/gabrielfioretti/codebases/personal-projects/V720_extracted/output_jadx/sources`
+Path: a local `jadx` decompile of the official APK, kept **outside this repo** (it is the
+vendor's copyrighted app — not redistributed here). Produce your own with
+`jadx -d output_jadx <com.naxclow.v720.apk>`; the sources are then under
+`output_jadx/sources`.
 Packages: `com.naxclow.rtc` (session/engine) and **`com.naxclow.rtc.net`** (the
 actual channel/transport/framing — the wire protocol lives here). Heavily
 obfuscated — cross-reference names via the naming map in `CLAUDE.md`. Some

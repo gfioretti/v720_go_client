@@ -33,5 +33,6 @@ media ordering are provisional until this test passes.
 ## Where the live state lives
 
 Durable cross-session state (decisions, what's verified vs. pending) is in the
-memory index at
-`~/.claude/projects/-Users-gabrielfioretti-codebases-personal-projects-v720-go-client/memory/MEMORY.md`.
+Claude Code memory index for this project, under
+`~/.claude/projects/<project-slug>/memory/MEMORY.md` (the slug is derived from
+this repo's local path, so it is specific to your machine).
