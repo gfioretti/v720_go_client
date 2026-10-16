@@ -1,0 +1,18 @@
+v720ctl / v720srv
+Copyright 2026 Gabriel Fioretti
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+This is an independent interoperability project for the "V720" / "A9 Mini"
+WiFi camera (vendor: Naxclow). It is not affiliated with, endorsed by, or
+supported by Naxclow or any camera manufacturer or distributor.
+
+"V720", "A9 Mini", "Naxclow", and any related names are the property of their
+respective owners and are used here only to identify the hardware this software
+interoperates with (nominative use).
+
+This repository contains only independently-written Go source and protocol
+documentation. It does NOT include or redistribute the vendor's application,
+firmware, or any decompiled source thereof. Protocol details were derived from
+a reverse-engineering pass over the official Android app for the purpose of
+interoperating with hardware the author owns.

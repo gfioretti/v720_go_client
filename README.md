@@ -77,8 +77,8 @@ Go-idiomatic DDD + Hexagonal (Ports & Adapters): a pure `internal/domain`, use c
 
 ## Contributing
 
-Issues and PRs welcome. The highest-risk area is wire-format code (byte order, offsets, framing) — those changes should come with byte-exact tests against the spec tables. The protocol documentation is the source of truth; if hardware behavior contradicts it, update the docs rather than letting a guess drift into the spec.
+Issues and PRs welcome — see **[`CONTRIBUTING.md`](CONTRIBUTING.md)**. In short: keep PRs small, keep `go build`/`vet`/`test` green, and the highest-risk area is wire-format code (byte order, offsets, framing) — those changes should come with byte-exact tests against the spec tables. The protocol documentation is the source of truth; if hardware behavior contradicts it, update the docs rather than letting a guess drift into the spec.
 
 ## License
 
-[Apache License 2.0](LICENSE). © 2026 Gabriel Fioretti.
+[Apache License 2.0](LICENSE). © 2026 Gabriel Fioretti. See [`NOTICE`](NOTICE) for attribution and scope.
