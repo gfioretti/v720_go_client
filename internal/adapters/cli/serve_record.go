@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	"v720_go_client/internal/domain"
+	"github.com/gfioretti/v720_go_client/internal/domain"
 )
 
 // recorder captures the live streams to temporary MJPEG + WAV files while active,

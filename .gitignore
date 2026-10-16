@@ -23,3 +23,8 @@ go.work.sum
 .idea/
 .vscode/
 *.swp
+
+# Claude Code local settings (machine-specific; may contain local paths)
+.claude/settings.local.json
+.claude/settings.local.json*
+*.tmp.*

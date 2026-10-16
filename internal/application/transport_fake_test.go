@@ -4,7 +4,7 @@ import (
 	"context"
 	"sync"
 
-	"v720_go_client/internal/domain"
+	"github.com/gfioretti/v720_go_client/internal/domain"
 )
 
 // fakeTransport is an in-memory Transport for exercising Session logic without a

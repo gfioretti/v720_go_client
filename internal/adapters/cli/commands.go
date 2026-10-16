@@ -12,9 +12,9 @@ import (
 	"io"
 	"time"
 
-	"v720_go_client/internal/adapters/transport/framedtcp"
-	"v720_go_client/internal/application"
-	"v720_go_client/internal/domain"
+	"github.com/gfioretti/v720_go_client/internal/adapters/transport/framedtcp"
+	"github.com/gfioretti/v720_go_client/internal/application"
+	"github.com/gfioretti/v720_go_client/internal/domain"
 )
 
 // Dialer opens a Transport to the given address. It is a seam: the real App uses

@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"v720_go_client/internal/domain"
+	"github.com/gfioretti/v720_go_client/internal/domain"
 )
 
 // runAPSDList connects and prints the SD-card recording catalogue:

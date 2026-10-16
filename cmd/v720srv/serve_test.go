@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	"v720_go_client/internal/adapters/transport/framedtcp"
-	"v720_go_client/internal/application"
-	"v720_go_client/internal/domain"
+	"github.com/gfioretti/v720_go_client/internal/adapters/transport/framedtcp"
+	"github.com/gfioretti/v720_go_client/internal/application"
+	"github.com/gfioretti/v720_go_client/internal/domain"
 )
 
 // discardf is a no-op logger for tests: the serveCameras/runMedia goroutines

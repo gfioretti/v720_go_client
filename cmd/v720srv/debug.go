@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"v720_go_client/internal/domain"
+	"github.com/gfioretti/v720_go_client/internal/domain"
 )
 
 // logRequests wraps an http.Handler to log every request line — useful for

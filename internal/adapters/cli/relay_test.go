@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"v720_go_client/internal/application"
-	"v720_go_client/internal/domain"
+	"github.com/gfioretti/v720_go_client/internal/application"
+	"github.com/gfioretti/v720_go_client/internal/domain"
 )
 
 // fakeCloud is a scriptable CloudAPI for the relay CLI tests. It returns a

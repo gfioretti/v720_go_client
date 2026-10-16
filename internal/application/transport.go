@@ -8,7 +8,7 @@ import (
 	"context"
 	"errors"
 
-	"v720_go_client/internal/domain"
+	"github.com/gfioretti/v720_go_client/internal/domain"
 )
 
 // ErrTransportClosed is returned by a Transport whose connection has been closed,

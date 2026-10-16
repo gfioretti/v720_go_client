@@ -6,7 +6,7 @@ import (
 	"flag"
 	"time"
 
-	"v720_go_client/internal/domain"
+	"github.com/gfioretti/v720_go_client/internal/domain"
 )
 
 // apAddress is the camera's fixed AP-mode address (doc §12.3); set-wifi always

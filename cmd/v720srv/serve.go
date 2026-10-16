@@ -3,9 +3,9 @@ package main
 import (
 	"context"
 
-	"v720_go_client/internal/adapters/transport/framedtcp"
-	"v720_go_client/internal/application"
-	"v720_go_client/internal/domain"
+	"github.com/gfioretti/v720_go_client/internal/adapters/transport/framedtcp"
+	"github.com/gfioretti/v720_go_client/internal/application"
+	"github.com/gfioretti/v720_go_client/internal/domain"
 )
 
 // coordChannel is the coordinator connection handleCamera drives: the framed

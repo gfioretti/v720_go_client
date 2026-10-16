@@ -1,3 +1,3 @@
-module v720_go_client
+module github.com/gfioretti/v720_go_client
 
 go 1.26

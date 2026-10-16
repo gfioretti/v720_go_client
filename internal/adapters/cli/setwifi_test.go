@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"v720_go_client/internal/domain"
+	"github.com/gfioretti/v720_go_client/internal/domain"
 )
 
 // End-to-end: `ap set-wifi` connects over the hotspot and delivers the code-204

@@ -7,9 +7,9 @@ import (
 	"fmt"
 	"time"
 
-	"v720_go_client/internal/adapters/naxclowapi"
-	"v720_go_client/internal/adapters/transport/relay"
-	"v720_go_client/internal/application"
+	"github.com/gfioretti/v720_go_client/internal/adapters/naxclowapi"
+	"github.com/gfioretti/v720_go_client/internal/adapters/transport/relay"
+	"github.com/gfioretti/v720_go_client/internal/application"
 )
 
 // newCloudAPI is the real CloudFactory: a naxclowapi client for baseURL.

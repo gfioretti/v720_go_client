@@ -3,7 +3,7 @@ package application
 import (
 	"context"
 
-	"v720_go_client/internal/domain"
+	"github.com/gfioretti/v720_go_client/internal/domain"
 )
 
 // SendCommand sends a device-control command (doc §12.5 — PTZ, IR LED, video

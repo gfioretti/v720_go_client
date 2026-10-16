@@ -3,7 +3,7 @@ package application
 import (
 	"context"
 
-	"v720_go_client/internal/domain"
+	"github.com/gfioretti/v720_go_client/internal/domain"
 )
 
 // RelayChannel moves whole domain.Frames over one relay-mode channel. It is the

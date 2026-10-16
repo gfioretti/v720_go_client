@@ -19,10 +19,10 @@ import (
 	"syscall"
 	"time"
 
-	"v720_go_client/internal/adapters/cloudhttp"
-	"v720_go_client/internal/adapters/transport/framedtcp"
-	"v720_go_client/internal/adapters/transport/relay"
-	"v720_go_client/internal/application"
+	"github.com/gfioretti/v720_go_client/internal/adapters/cloudhttp"
+	"github.com/gfioretti/v720_go_client/internal/adapters/transport/framedtcp"
+	"github.com/gfioretti/v720_go_client/internal/adapters/transport/relay"
+	"github.com/gfioretti/v720_go_client/internal/application"
 )
 
 func main() {

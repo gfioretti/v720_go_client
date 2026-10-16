@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"v720_go_client/internal/domain"
+	"github.com/gfioretti/v720_go_client/internal/domain"
 )
 
 // startMockCameraCapturingAll handshakes, then records every frame the client

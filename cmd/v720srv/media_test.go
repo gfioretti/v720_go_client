@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"v720_go_client/internal/adapters/transport/relay"
-	"v720_go_client/internal/domain"
+	"github.com/gfioretti/v720_go_client/internal/adapters/transport/relay"
+	"github.com/gfioretti/v720_go_client/internal/domain"
 )
 
 func mjpegFrame(flag int8, seq uint32, payload []byte) domain.Frame {

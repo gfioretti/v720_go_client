@@ -8,8 +8,8 @@ import (
 	"strconv"
 	"sync"
 
-	"v720_go_client/internal/adapters/transport/relay"
-	"v720_go_client/internal/domain"
+	"github.com/gfioretti/v720_go_client/internal/adapters/transport/relay"
+	"github.com/gfioretti/v720_go_client/internal/domain"
 )
 
 // mediaHub fans reassembled JPEG frames out to any number of HTTP viewers and

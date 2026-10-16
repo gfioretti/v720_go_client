@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"v720_go_client/internal/domain"
+	"github.com/gfioretti/v720_go_client/internal/domain"
 )
 
 // fakeMux records the mux request and inspects the intermediate files while they

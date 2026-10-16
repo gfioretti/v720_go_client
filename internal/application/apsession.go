@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"time"
 
-	"v720_go_client/internal/domain"
+	"github.com/gfioretti/v720_go_client/internal/domain"
 )
 
 // apToken is the hardcoded literal the client sends as the 501 register token in

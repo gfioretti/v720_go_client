@@ -6,7 +6,7 @@ import (
 	"errors"
 	"testing"
 
-	"v720_go_client/internal/domain"
+	"github.com/gfioretti/v720_go_client/internal/domain"
 )
 
 func TestSendCommand_WrapsInAPEnvelopeWithDevTarget(t *testing.T) {

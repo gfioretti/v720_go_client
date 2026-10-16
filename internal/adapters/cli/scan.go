@@ -11,8 +11,8 @@ import (
 	"sync"
 	"time"
 
-	"v720_go_client/internal/adapters/transport/framedtcp"
-	"v720_go_client/internal/domain"
+	"github.com/gfioretti/v720_go_client/internal/adapters/transport/framedtcp"
+	"github.com/gfioretti/v720_go_client/internal/domain"
 )
 
 // defaultProbeTimeout bounds each per-host probe; a camera on the LAN answers the

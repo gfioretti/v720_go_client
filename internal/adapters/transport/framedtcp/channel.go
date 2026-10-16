@@ -18,8 +18,8 @@ import (
 	"sync"
 	"time"
 
-	"v720_go_client/internal/application"
-	"v720_go_client/internal/domain"
+	"github.com/gfioretti/v720_go_client/internal/application"
+	"github.com/gfioretti/v720_go_client/internal/domain"
 )
 
 // readBufferSize comfortably spans a maximum-size frame so header+payload reads

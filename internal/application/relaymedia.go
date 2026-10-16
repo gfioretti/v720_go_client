@@ -3,7 +3,7 @@ package application
 import (
 	"encoding/json"
 
-	"v720_go_client/internal/domain"
+	"github.com/gfioretti/v720_go_client/internal/domain"
 )
 
 // This file holds the spec-pinned primitives of the relay UDP media channel

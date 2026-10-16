@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"net"
 
-	"v720_go_client/internal/domain"
+	"github.com/gfioretti/v720_go_client/internal/domain"
 )
 
 // MediaServer is the server side of the UDP media channel: it binds a UDP socket

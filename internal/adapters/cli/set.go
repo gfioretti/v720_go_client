@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"v720_go_client/internal/domain"
+	"github.com/gfioretti/v720_go_client/internal/domain"
 )
 
 // sendCommandTimeout bounds writing a single control command after connecting.

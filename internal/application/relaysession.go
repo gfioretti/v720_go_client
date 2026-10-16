@@ -6,7 +6,7 @@ import (
 	"errors"
 	"fmt"
 
-	"v720_go_client/internal/domain"
+	"github.com/gfioretti/v720_go_client/internal/domain"
 )
 
 // ErrRelayRegister means the coordinator rejected the P2P registration (a

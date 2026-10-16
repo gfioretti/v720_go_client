@@ -10,7 +10,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"v720_go_client/internal/domain"
+	"github.com/gfioretti/v720_go_client/internal/domain"
 )
 
 // runAPLive connects, then streams live view until --duration elapses or the

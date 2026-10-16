@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"v720_go_client/internal/domain"
+	"github.com/gfioretti/v720_go_client/internal/domain"
 )
 
 // DefaultClientTarget is the client-target id the server puts in its 301 forward

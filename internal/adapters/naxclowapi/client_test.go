@@ -8,7 +8,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"v720_go_client/internal/domain"
+	"github.com/gfioretti/v720_go_client/internal/domain"
 )
 
 // newTestClient starts an httptest server with the given handler and returns a

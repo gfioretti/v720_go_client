@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"v720_go_client/internal/domain"
+	"github.com/gfioretti/v720_go_client/internal/domain"
 )
 
 func TestRun_SDListMissingRequiredFlags(t *testing.T) {

@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"v720_go_client/internal/domain"
+	"github.com/gfioretti/v720_go_client/internal/domain"
 )
 
 // capture collects formatted log lines.

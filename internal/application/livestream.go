@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	"v720_go_client/internal/domain"
+	"github.com/gfioretti/v720_go_client/internal/domain"
 )
 
 // VideoFrameHandler receives one complete MJPEG image per call (a full JPEG,

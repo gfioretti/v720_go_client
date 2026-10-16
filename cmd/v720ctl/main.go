@@ -8,7 +8,7 @@ import (
 	"os"
 	"os/signal"
 
-	"v720_go_client/internal/adapters/cli"
+	"github.com/gfioretti/v720_go_client/internal/adapters/cli"
 )
 
 func main() {

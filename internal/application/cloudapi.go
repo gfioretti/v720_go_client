@@ -3,7 +3,7 @@ package application
 import (
 	"context"
 
-	"v720_go_client/internal/domain"
+	"github.com/gfioretti/v720_go_client/internal/domain"
 )
 
 // CloudAPI is the driven/secondary port a relay session's setup phase uses to

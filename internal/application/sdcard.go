@@ -6,7 +6,7 @@ import (
 	"errors"
 	"fmt"
 
-	"v720_go_client/internal/domain"
+	"github.com/gfioretti/v720_go_client/internal/domain"
 )
 
 // ErrSDCardListRejected means the device returned a non-200 status for the

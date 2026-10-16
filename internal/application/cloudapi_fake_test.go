@@ -3,7 +3,7 @@ package application
 import (
 	"context"
 
-	"v720_go_client/internal/domain"
+	"github.com/gfioretti/v720_go_client/internal/domain"
 )
 
 // fakeCloudAPI is a scriptable in-memory CloudAPI for exercising relay-session

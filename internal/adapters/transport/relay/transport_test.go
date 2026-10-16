@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"v720_go_client/internal/domain"
+	"github.com/gfioretti/v720_go_client/internal/domain"
 )
 
 // fakeChannel is a minimal channel (RelayChannel + Closer) for exercising the

@@ -5,8 +5,8 @@ import (
 	"errors"
 	"io"
 
-	"v720_go_client/internal/adapters/transport/framedtcp"
-	"v720_go_client/internal/application"
+	"github.com/gfioretti/v720_go_client/internal/adapters/transport/framedtcp"
+	"github.com/gfioretti/v720_go_client/internal/application"
 )
 
 // channel is what the bundle needs from each relay channel: the application's

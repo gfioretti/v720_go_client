@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"v720_go_client/internal/domain"
+	"github.com/gfioretti/v720_go_client/internal/domain"
 )
 
 // The server receives a camera's framed datagram (learning its address) and can

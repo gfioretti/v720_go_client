@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"v720_go_client/internal/domain"
+	"github.com/gfioretti/v720_go_client/internal/domain"
 )
 
 func TestRecorder_CaptureAndFinish(t *testing.T) {
